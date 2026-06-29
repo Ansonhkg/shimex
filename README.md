@@ -10,6 +10,9 @@ server and generated model catalog. The original Codex app remains untouched.
 
 - `shimex.yml` as the source of truth.
 - Provider modules for the Codex-shim provider families.
+- Request adapters for OpenAI-compatible chat, OpenAI Responses-compatible,
+  Anthropic Messages, ClinePass, ChatGPT/Codex passthrough, Cursor Composer,
+  and Auto Router fallback routing.
 - Codex Desktop as the only client target.
 - Bare local admin UI exposed by the Shimex server.
 
@@ -46,3 +49,6 @@ Shimex is being ported from `codex-shim` with these provider families:
 
 Otteriki is intentionally not a bespoke provider. It should work as an
 OpenAI-compatible endpoint when configured.
+
+Cursor Composer is exposed as text-only in Shimex because the current bridge
+uses `cursor-agent` prompt input rather than a native image transport.

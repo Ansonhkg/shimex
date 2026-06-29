@@ -1,0 +1,405 @@
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { handleProviderModelRequest } from "../src/providers/adapter.js";
+
+describe("Provider request adapters", () => {
+  test("routes Responses requests to OpenAI-compatible chat endpoints", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "lm-studio",
+        endpoint: "http://127.0.0.1:1234/v1",
+        models: [modelConfig({ slug: "lm-local", upstreamModel: "local-upstream" })],
+      }),
+      "/v1/responses",
+      { model: "lm-local", input: "hello", stream: false },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            created: 123,
+            model: "local-upstream",
+            choices: [{ message: { role: "assistant", content: "hello back" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(calls[0].url, "http://127.0.0.1:1234/v1/chat/completions");
+    assert.equal(JSON.parse(calls[0].init.body).model, "local-upstream");
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.model, "lm-local");
+    assert.equal(payload.output[0].content[0].text, "hello back");
+  });
+
+  test("rejects image input when configured model is text-only", async () => {
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "openai-compatible",
+        endpoint: "https://example.test/v1",
+        models: [modelConfig({ slug: "text-only", upstreamModel: "text-upstream", inputModalities: ["text"] })],
+      }),
+      "/v1/responses",
+      {
+        model: "text-only",
+        input: [{
+          role: "user",
+          content: [
+            { type: "input_text", text: "look" },
+            { type: "input_image", image_url: "data:image/png;base64,abc" },
+          ],
+        }],
+      },
+      { fetch: async () => assert.fail("text-only image requests must not reach upstream") },
+    );
+
+    assert.equal(result.status, 400);
+    assert.match(JSON.parse(result.body).error.message, /does not support image/);
+  });
+
+  test("routes chat requests to Responses-compatible endpoints", async () => {
+    const previous = process.env.OPENAI_RESPONSES_API_KEY;
+    process.env.OPENAI_RESPONSES_API_KEY = "responses-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "openai-responses",
+          endpoint: "https://responses.example/v1",
+          auth: { type: "env", name: "OPENAI_RESPONSES_API_KEY" },
+          models: [modelConfig({ slug: "responses-model", upstreamModel: "resp-upstream" })],
+        }),
+        "/v1/chat/completions",
+        { model: "responses-model", messages: [{ role: "user", content: "hello" }], stream: false },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "resp_1",
+              created_at: 456,
+              model: "resp-upstream",
+              output: [{
+                id: "msg_1",
+                type: "message",
+                role: "assistant",
+                content: [{ type: "output_text", text: "hi", annotations: [] }],
+              }],
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      assert.equal(calls[0].url, "https://responses.example/v1/responses");
+      assert.equal(calls[0].init.headers.authorization, "Bearer responses-key");
+      assert.equal(JSON.parse(calls[0].init.body).model, "resp-upstream");
+      const payload = JSON.parse(result.body);
+      assert.equal(payload.model, "responses-model");
+      assert.equal(payload.choices[0].message.content, "hi");
+    } finally {
+      setOrDeleteEnv("OPENAI_RESPONSES_API_KEY", previous);
+    }
+  });
+
+  test("routes Responses requests to Anthropic Messages", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "anthropic",
+          endpoint: "https://api.anthropic.com/v1",
+          auth: { type: "env", name: "ANTHROPIC_API_KEY" },
+          models: [modelConfig({ slug: "claude-test", upstreamModel: "claude-upstream", inputModalities: ["text", "image"] })],
+        }),
+        "/v1/responses",
+        {
+          model: "claude-test",
+          instructions: "be brief",
+          input: [{
+            role: "user",
+            content: [
+              { type: "input_text", text: "describe" },
+              { type: "input_image", image_url: "data:image/png;base64,abc" },
+            ],
+          }],
+          stream: false,
+        },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "msg_1",
+              model: "claude-upstream",
+              content: [{ type: "text", text: "a small image" }],
+              usage: { input_tokens: 4, output_tokens: 3 },
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      assert.equal(calls[0].url, "https://api.anthropic.com/v1/messages");
+      assert.equal(calls[0].init.headers["x-api-key"], "anthropic-key");
+      const upstreamBody = JSON.parse(calls[0].init.body);
+      assert.equal(upstreamBody.model, "claude-upstream");
+      assert.equal(upstreamBody.system, "be brief");
+      assert.equal(upstreamBody.messages[0].content[1].type, "image");
+      const payload = JSON.parse(result.body);
+      assert.equal(payload.model, "claude-test");
+      assert.equal(payload.output[0].content[0].text, "a small image");
+    } finally {
+      setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
+    }
+  });
+
+  test("returns 404 for unknown model slugs", async () => {
+    const result = await handleProviderModelRequest(testConfig({
+      id: "lm-studio",
+      endpoint: "http://127.0.0.1:1234/v1",
+      models: [],
+    }), "/v1/responses", { model: "missing" });
+    assert.equal(result.status, 404);
+  });
+
+  test("routes Responses requests to ChatGPT Codex passthrough", async () => {
+    const authPath = await codexAuthFile();
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "chatgpt-codex",
+        models: [],
+      }),
+      "/v1/responses",
+      { model: "gpt-5-5", input: "hello", stream: false },
+      {
+        authPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "resp_1",
+            model: "gpt-5.5",
+            output: [{
+              id: "msg_1",
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: "from chatgpt", annotations: [] }],
+            }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(calls[0].url, "https://chatgpt.com/backend-api/codex/responses");
+    assert.equal(calls[0].init.headers.authorization, "Bearer codex-token");
+    assert.equal(JSON.parse(calls[0].init.body).model, "gpt-5.5");
+    assert.equal(JSON.parse(result.body).model, "gpt-5-5");
+  });
+
+  test("routes Responses requests to Cursor Composer bridge", async () => {
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "cursor-composer",
+        models: [],
+      }),
+      "/v1/responses",
+      { model: "composer-2-5", input: "hello", stream: false },
+      {
+        runCursorAgent: async function* (prompt, model) {
+          assert.equal(model, "composer-2.5");
+          assert.match(prompt, /hello/);
+          yield { type: "text_delta", delta: "cursor " };
+          yield { type: "completed", text: "cursor done" };
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.model, "composer-2-5");
+    assert.equal(payload.output[0].content[0].text, "cursor done");
+  });
+
+  test("returns a clean Cursor Composer error when the bridge fails", async () => {
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "cursor-composer",
+        models: [],
+      }),
+      "/v1/responses",
+      { model: "composer-2-5", input: "hello", stream: false },
+      {
+        runCursorAgent: async function* () {
+          throw new Error("cursor-agent missing");
+        },
+      },
+    );
+
+    assert.equal(result.status, 502);
+    assert.match(JSON.parse(result.body).error.message, /cursor-agent missing/);
+  });
+
+  test("auto-router rewrites to the cheapest viable configured candidate", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      {
+        providers: [
+          {
+            id: "auto-router",
+            enabled: true,
+            endpoint: "",
+            auth: null,
+            models: [],
+            options: {
+              enabled: true,
+              slug: "shimex-auto",
+              candidates: [
+                { slug: "vision-model", cost: 3 },
+                { slug: "text-model", cost: 1 },
+              ],
+            },
+          },
+          {
+            id: "lm-studio",
+            enabled: true,
+            endpoint: "http://127.0.0.1:1234/v1",
+            auth: null,
+            options: {},
+            models: [
+              modelConfig({ slug: "text-model", upstreamModel: "text-upstream", inputModalities: ["text"] }),
+              modelConfig({ slug: "vision-model", upstreamModel: "vision-upstream", inputModalities: ["text", "image"] }),
+            ],
+          },
+        ],
+      },
+      "/v1/responses",
+      { model: "shimex-auto", input: "hello", stream: false },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            model: "text-upstream",
+            choices: [{ message: { role: "assistant", content: "routed" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(JSON.parse(calls[0].init.body).model, "text-upstream");
+    assert.equal(JSON.parse(result.body).model, "text-model");
+  });
+
+  test("auto-router skips text-only candidates for image requests", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      {
+        providers: [
+          {
+            id: "auto-router",
+            enabled: true,
+            endpoint: "",
+            auth: null,
+            models: [],
+            options: {
+              enabled: true,
+              slug: "shimex-auto",
+              candidates: [
+                { slug: "text-model", cost: 1 },
+                { slug: "vision-model", cost: 2 },
+              ],
+            },
+          },
+          {
+            id: "lm-studio",
+            enabled: true,
+            endpoint: "http://127.0.0.1:1234/v1",
+            auth: null,
+            options: {},
+            models: [
+              modelConfig({ slug: "text-model", upstreamModel: "text-upstream", inputModalities: ["text"] }),
+              modelConfig({ slug: "vision-model", upstreamModel: "vision-upstream", inputModalities: ["text", "image"] }),
+            ],
+          },
+        ],
+      },
+      "/v1/responses",
+      {
+        model: "shimex-auto",
+        input: [{ role: "user", content: [{ type: "input_image", image_url: "data:image/png;base64,abc" }] }],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            model: "vision-upstream",
+            choices: [{ message: { role: "assistant", content: "vision routed" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(JSON.parse(calls[0].init.body).model, "vision-upstream");
+    assert.equal(JSON.parse(result.body).model, "vision-model");
+  });
+});
+
+function testConfig(provider) {
+  return {
+    providers: [{
+      enabled: true,
+      auth: null,
+      options: {},
+      ...provider,
+    }],
+  };
+}
+
+function modelConfig({ slug, upstreamModel, inputModalities = ["text"] }) {
+  return {
+    slug,
+    displayName: slug,
+    upstreamModel,
+    contextWindow: 128000,
+    inputModalities,
+  };
+}
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function codexAuthFile() {
+  const root = await mkdtemp(join(tmpdir(), "shimex-codex-auth-"));
+  const path = join(root, "auth.json");
+  await writeFile(path, JSON.stringify({
+    tokens: {
+      access_token: "codex-token",
+      account_id: "account_1",
+    },
+  }));
+  return path;
+}
+
+function setOrDeleteEnv(name, value) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}

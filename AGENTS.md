@@ -50,8 +50,12 @@ To add a provider:
 2. Export a manifest with `id`, `displayName`, `kind`, `protocol`,
    `auth`, `capabilitySource`, and `requestAdapter`.
 3. Register it in `src/providers/index.js`.
-4. Add a `shimex.yml` example entry.
-5. Add tests showing models appear in `/v1/models` and the Codex catalog.
+4. Add or reuse a request adapter in `src/providers/<provider-id>/adapter.js`
+   or a shared protocol adapter.
+5. Register the adapter in `src/providers/adapter.js`.
+6. Add a `shimex.yml` example entry.
+7. Add tests showing models appear in `/v1/models`, the Codex catalog, and
+   at least one deterministic request route.
 
 OpenAI-compatible endpoint providers should use the shared
 `openai-compatible` provider shape. Do not create a bespoke provider for a
@@ -80,6 +84,9 @@ Image support requires all of:
 
 Text-only models must reject image input clearly instead of dropping image
 parts silently.
+
+If a bridge cannot forward images to the upstream API or CLI, keep that model
+text-only even if the upstream product may support images elsewhere.
 
 ## Codex Client Rules
 

@@ -22,6 +22,27 @@ export function responsesToChat(body, upstreamModel) {
   return chat;
 }
 
+export function chatToResponsesRequest(body, upstreamModel) {
+  const request = {
+    model: upstreamModel,
+    input: body.messages || [],
+    stream: Boolean(body.stream),
+  };
+  copyIfPresent(body, request, "temperature");
+  copyIfPresent(body, request, "top_p");
+  copyIfPresent(body, request, "max_tokens", "max_output_tokens");
+  copyIfPresent(body, request, "max_output_tokens");
+  copyIfPresent(body, request, "parallel_tool_calls");
+  copyIfPresent(body, request, "reasoning_effort");
+  if (body.tools) {
+    request.tools = body.tools;
+  }
+  if (body.tool_choice) {
+    request.tool_choice = body.tool_choice;
+  }
+  return request;
+}
+
 export function chatCompletionToResponse(payload, requestedModel) {
   const choice = payload.choices?.[0] || {};
   const message = choice.message || {};
@@ -57,6 +78,47 @@ export function chatCompletionToResponse(payload, requestedModel) {
     status: "completed",
     output,
     usage: normalizeResponsesUsage(payload.usage),
+  };
+}
+
+export function responseToChatCompletion(payload, requestedModel) {
+  const message = {
+    role: "assistant",
+    content: "",
+  };
+  const toolCalls = [];
+  for (const item of payload.output || []) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    if (item.type === "message") {
+      message.content += contentToText(item.content || "");
+    }
+    if (item.type === "function_call") {
+      toolCalls.push({
+        id: item.call_id || item.id || "call_0",
+        type: "function",
+        function: {
+          name: item.name || "",
+          arguments: item.arguments || "",
+        },
+      });
+    }
+  }
+  if (toolCalls.length) {
+    message.tool_calls = toolCalls;
+  }
+  return {
+    id: payload.id || `chatcmpl_${Date.now()}`,
+    object: "chat.completion",
+    created: payload.created_at || Math.floor(Date.now() / 1000),
+    model: requestedModel,
+    choices: [{
+      index: 0,
+      message,
+      finish_reason: toolCalls.length ? "tool_calls" : "stop",
+    }],
+    usage: chatUsage(payload.usage),
   };
 }
 
@@ -113,6 +175,110 @@ export function chatChunkToResponsesEvents(state, chunk, requestedModel) {
     });
   }
   return events;
+}
+
+export function responsePayloadToEvents(payload, requestedModel) {
+  const response = rewriteResponseModel(payload, requestedModel);
+  const responseId = response.id || `resp_${Date.now()}`;
+  const events = [{
+    type: "response.created",
+    response: {
+      ...response,
+      id: responseId,
+      status: "in_progress",
+      output: [],
+    },
+  }];
+  const output = Array.isArray(response.output) ? response.output : [];
+  output.forEach((item, outputIndex) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    if (item.type !== "message") {
+      events.push({
+        type: "response.output_item.added",
+        output_index: outputIndex,
+        item: { ...item, status: "in_progress" },
+      });
+      events.push({
+        type: "response.output_item.done",
+        output_index: outputIndex,
+        item,
+      });
+      return;
+    }
+    const itemId = item.id || `msg_${outputIndex}`;
+    events.push({
+      type: "response.output_item.added",
+      output_index: outputIndex,
+      item: { ...item, id: itemId, status: "in_progress", content: [] },
+    });
+    const content = Array.isArray(item.content) ? item.content : [];
+    content.forEach((part, contentIndex) => {
+      if (!part || typeof part !== "object") {
+        return;
+      }
+      if (!["output_text", "text"].includes(part.type)) {
+        return;
+      }
+      const text = String(part.text || "");
+      const opened = { type: "output_text", text: "", annotations: part.annotations || [] };
+      const done = { ...opened, text };
+      events.push({
+        type: "response.content_part.added",
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: contentIndex,
+        part: opened,
+      });
+      if (text) {
+        events.push({
+          type: "response.output_text.delta",
+          item_id: itemId,
+          output_index: outputIndex,
+          content_index: contentIndex,
+          delta: text,
+        });
+      }
+      events.push({
+        type: "response.output_text.done",
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: contentIndex,
+        text,
+      });
+      events.push({
+        type: "response.content_part.done",
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: contentIndex,
+        part: done,
+      });
+    });
+    events.push({
+      type: "response.output_item.done",
+      output_index: outputIndex,
+      item: { ...item, id: itemId, status: item.status || "completed" },
+    });
+  });
+  events.push({
+    type: "response.completed",
+    response: { ...response, id: responseId, model: requestedModel, status: "completed" },
+  });
+  return events;
+}
+
+export function rewriteResponseModel(payload, requestedModel) {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+  if (payload.response && typeof payload.response === "object") {
+    payload.response.model = requestedModel;
+  }
+  if (payload.model) {
+    payload.model = requestedModel;
+  }
+  return payload;
 }
 
 export function finishChatResponsesStream(state, requestedModel) {
@@ -324,6 +490,19 @@ function normalizeResponsesUsage(usage) {
     input_tokens: input,
     output_tokens: output,
     total_tokens: usage.total_tokens ?? input + output,
+  };
+}
+
+function chatUsage(usage) {
+  if (!usage || typeof usage !== "object") {
+    return undefined;
+  }
+  const prompt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+  const completion = usage.completion_tokens ?? usage.output_tokens ?? 0;
+  return {
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    total_tokens: usage.total_tokens ?? prompt + completion,
   };
 }
 

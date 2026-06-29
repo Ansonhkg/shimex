@@ -4,6 +4,7 @@ import { discoverModels } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { installCodexClient, openCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
+import { handleProviderModelRequest } from "../providers/adapter.js";
 import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
 
 export async function createServer(config) {
@@ -73,12 +74,7 @@ async function routeRequest(config, request, url) {
     if (clinePass) {
       return clinePass;
     }
-    return json({
-      error: {
-        message: "Provider request adapters are scaffolded but not ported yet.",
-        type: "shimex_adapter_not_implemented",
-      },
-    }, { status: 501 });
+    return await handleProviderModelRequest(config, pathname, body, { headers: request.headers });
   }
   return json({ error: "not found" }, { status: 404 });
 }

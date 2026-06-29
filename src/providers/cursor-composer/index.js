@@ -13,10 +13,9 @@ export const cursorComposerProvider = {
         displayName: "Composer 2.5",
         upstreamModel: "composer-2.5",
         contextWindow: 272000,
-        inputModalities: ["text", "image"],
+        inputModalities: ["text"],
         priority: 11000,
       },
     ];
   },
 };
-
