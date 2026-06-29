@@ -8,11 +8,14 @@ export function generateCodexCatalog(models) {
 
 export function codexCatalogEntry(model, index = 0) {
   const context = model.contextWindow || 128000;
-  const supportsImages = model.inputModalities.includes("image");
+  const inputModalities = codexInputModalities(model.inputModalities);
+  const supportsImages = inputModalities.includes("image");
+  const displayName = codexDisplayName(model);
+  const providerName = model.providerDisplayName || model.providerId || "Shimex";
   return {
     slug: model.slug,
-    display_name: model.displayName,
-    description: `${model.displayName} routed through Shimex.`,
+    display_name: displayName,
+    description: `${model.displayName} routed through ${providerName} via Shimex.`,
     context_window: context,
     max_context_window: context,
     auto_compact_token_limit: Math.max(8000, Math.floor(context * 0.8)),
@@ -37,7 +40,7 @@ export function codexCatalogEntry(model, index = 0) {
     supports_search_tool: false,
     supports_parallel_tool_calls: true,
     experimental_supported_tools: [],
-    input_modalities: model.inputModalities,
+    input_modalities: inputModalities,
     supports_image_detail_original: supportsImages,
     shell_type: "shell_command",
     visibility: "list",
@@ -48,11 +51,26 @@ export function codexCatalogEntry(model, index = 0) {
     priority: model.priority || Math.max(1, 1000 - index),
     prefer_websockets: false,
     available_in_plans: PLAN_TIERS,
-    base_instructions: `You are Codex, a coding agent powered by ${model.displayName} through Shimex.`,
+    base_instructions: `You are Codex, a coding agent powered by ${model.displayName} through ${providerName} via Shimex.`,
     model_messages: {
-      instructions_template: `You are Codex, a coding agent powered by ${model.displayName} through Shimex.`,
+      instructions_template: `You are Codex, a coding agent powered by ${model.displayName} through ${providerName} via Shimex.`,
       instructions_variables: { model_name: model.displayName },
     },
   };
 }
 
+function codexDisplayName(model) {
+  const providerName = model.providerDisplayName || model.providerId;
+  if (!providerName) {
+    return model.displayName;
+  }
+  if (model.displayName.toLowerCase().startsWith(`${providerName.toLowerCase()}:`)) {
+    return model.displayName;
+  }
+  return `${providerName}: ${model.displayName}`;
+}
+
+function codexInputModalities(inputModalities = []) {
+  const supported = inputModalities.filter((modality) => modality === "text" || modality === "image");
+  return supported.length ? supported : ["text"];
+}

@@ -39,6 +39,13 @@ describe("Codex managed app lifecycle", () => {
     const codexConfig = await readFile(join(profileHome, "config.toml"), "utf8");
     assert.match(codexConfig, /model = "test-model"/);
     assert.match(codexConfig, /model_provider = "shimex"/);
+    const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
+    assert.equal(auth.auth_mode, "apikey");
+    assert.equal(auth.OPENAI_API_KEY, "shimex-local-api-key");
+    assert.equal(auth.tokens, null);
+    const state = JSON.parse(await readFile(join(profileHome, ".codex-global-state.json"), "utf8"));
+    assert.equal(state["electron-persisted-atom-state"]["electron:onboarding-welcome-pending"], false);
+    assert.equal(state["electron-persisted-atom-state"]["electron:onboarding-projectless-completed"], true);
   });
 });
 

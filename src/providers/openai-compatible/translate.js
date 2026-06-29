@@ -145,34 +145,22 @@ export function chatChunkToResponsesEvents(state, chunk, requestedModel) {
   const text = delta.content || "";
   if (text) {
     if (!state.messageOpened) {
-      state.messageOpened = true;
-      events.push({
-        type: "response.output_item.added",
-        output_index: 0,
-        item: {
-          id: state.messageId,
-          type: "message",
-          status: "in_progress",
-          role: "assistant",
-          content: [],
-        },
-      });
-      events.push({
-        type: "response.content_part.added",
-        item_id: state.messageId,
-        output_index: 0,
-        content_index: 0,
-        part: { type: "output_text", text: "", annotations: [] },
-      });
+      events.push(...openStreamMessage(state));
     }
     state.text += text;
     events.push({
       type: "response.output_text.delta",
       item_id: state.messageId,
-      output_index: 0,
+      output_index: state.messageIndex,
       content_index: 0,
       delta: text,
     });
+  }
+  for (const call of delta.tool_calls || []) {
+    if (state.messageOpened && !state.messageClosed) {
+      events.push(...closeStreamMessage(state));
+    }
+    events.push(...streamToolCallDelta(state, call));
   }
   return events;
 }
@@ -282,28 +270,14 @@ export function rewriteResponseModel(payload, requestedModel) {
 }
 
 export function finishChatResponsesStream(state, requestedModel) {
-  const output = state.text ? [messageOutput(state.text, state.messageId)] : [];
   const events = [];
-  if (state.messageOpened) {
-    events.push({
-      type: "response.output_text.done",
-      item_id: state.messageId,
-      output_index: 0,
-      content_index: 0,
-      text: state.text,
-    });
-    events.push({
-      type: "response.content_part.done",
-      item_id: state.messageId,
-      output_index: 0,
-      content_index: 0,
-      part: { type: "output_text", text: state.text, annotations: [] },
-    });
-    events.push({
-      type: "response.output_item.done",
-      output_index: 0,
-      item: messageOutput(state.text, state.messageId),
-    });
+  if (state.messageOpened && !state.messageClosed) {
+    events.push(...closeStreamMessage(state));
+  }
+  for (const toolCall of orderedToolCalls(state)) {
+    if (!toolCall.closed) {
+      events.push(...closeStreamToolCall(toolCall));
+    }
   }
   events.push({
     type: "response.completed",
@@ -313,7 +287,7 @@ export function finishChatResponsesStream(state, requestedModel) {
       created_at: Math.floor(Date.now() / 1000),
       status: "completed",
       model: requestedModel,
-      output,
+      output: completedStreamOutput(state),
       usage: state.usage,
     },
   });
@@ -326,8 +300,12 @@ export function createResponsesStreamState() {
     responseId: `resp_${now}`,
     messageId: `msg_${now}`,
     created: false,
+    nextOutputIndex: 0,
+    messageIndex: null,
     messageOpened: false,
+    messageClosed: false,
     text: "",
+    toolCalls: new Map(),
     usage: null,
   };
 }
@@ -337,6 +315,146 @@ export function unwrapOpenAICompatiblePayload(payload) {
     return payload.data;
   }
   return payload;
+}
+
+function openStreamMessage(state) {
+  state.messageIndex = state.nextOutputIndex;
+  state.nextOutputIndex += 1;
+  state.messageOpened = true;
+  return [
+    {
+      type: "response.output_item.added",
+      output_index: state.messageIndex,
+      item: {
+        id: state.messageId,
+        type: "message",
+        status: "in_progress",
+        role: "assistant",
+        content: [],
+      },
+    },
+    {
+      type: "response.content_part.added",
+      item_id: state.messageId,
+      output_index: state.messageIndex,
+      content_index: 0,
+      part: { type: "output_text", text: "", annotations: [] },
+    },
+  ];
+}
+
+function closeStreamMessage(state) {
+  state.messageClosed = true;
+  return [
+    {
+      type: "response.output_text.done",
+      item_id: state.messageId,
+      output_index: state.messageIndex,
+      content_index: 0,
+      text: state.text,
+    },
+    {
+      type: "response.content_part.done",
+      item_id: state.messageId,
+      output_index: state.messageIndex,
+      content_index: 0,
+      part: { type: "output_text", text: state.text, annotations: [] },
+    },
+    {
+      type: "response.output_item.done",
+      output_index: state.messageIndex,
+      item: messageOutput(state.text, state.messageId),
+    },
+  ];
+}
+
+function streamToolCallDelta(state, call) {
+  const events = [];
+  const index = Number.isInteger(call?.index) ? call.index : Number.parseInt(call?.index ?? "0", 10) || 0;
+  const fn = call?.function || {};
+  let toolCall = state.toolCalls.get(index);
+  if (!toolCall) {
+    const callId = call?.id || `call_${index}`;
+    toolCall = {
+      id: callId,
+      callId,
+      name: String(fn.name || ""),
+      arguments: "",
+      outputIndex: state.nextOutputIndex,
+      closed: false,
+    };
+    state.nextOutputIndex += 1;
+    state.toolCalls.set(index, toolCall);
+    events.push({
+      type: "response.output_item.added",
+      output_index: toolCall.outputIndex,
+      item: {
+        id: toolCall.id,
+        type: "function_call",
+        status: "in_progress",
+        call_id: toolCall.callId,
+        name: toolCall.name,
+        arguments: "",
+      },
+    });
+  } else if (fn.name) {
+    toolCall.name += String(fn.name);
+  }
+
+  const argumentDelta = fn.arguments || "";
+  if (argumentDelta) {
+    toolCall.arguments += argumentDelta;
+    events.push({
+      type: "response.function_call_arguments.delta",
+      item_id: toolCall.id,
+      output_index: toolCall.outputIndex,
+      delta: argumentDelta,
+    });
+  }
+  return events;
+}
+
+function closeStreamToolCall(toolCall) {
+  toolCall.closed = true;
+  return [
+    {
+      type: "response.function_call_arguments.done",
+      item_id: toolCall.id,
+      output_index: toolCall.outputIndex,
+      arguments: toolCall.arguments,
+    },
+    {
+      type: "response.output_item.done",
+      output_index: toolCall.outputIndex,
+      item: streamToolCallOutput(toolCall),
+    },
+  ];
+}
+
+function completedStreamOutput(state) {
+  const items = [];
+  if (state.messageOpened && state.text) {
+    items.push({ outputIndex: state.messageIndex, item: messageOutput(state.text, state.messageId) });
+  }
+  for (const toolCall of orderedToolCalls(state)) {
+    items.push({ outputIndex: toolCall.outputIndex, item: streamToolCallOutput(toolCall) });
+  }
+  return items.sort((a, b) => a.outputIndex - b.outputIndex).map((entry) => entry.item);
+}
+
+function orderedToolCalls(state) {
+  return Array.from(state.toolCalls.values()).sort((a, b) => a.outputIndex - b.outputIndex);
+}
+
+function streamToolCallOutput(toolCall) {
+  return {
+    id: toolCall.id,
+    type: "function_call",
+    status: "completed",
+    call_id: toolCall.callId,
+    name: toolCall.name,
+    arguments: toolCall.arguments,
+  };
 }
 
 function responsesInputToMessages(input) {
@@ -350,8 +468,20 @@ function responsesInputToMessages(input) {
     return [{ role: "user", content: contentToText(input) }];
   }
   const messages = [];
+  const pendingToolCalls = [];
+  const flushPendingToolCalls = () => {
+    if (!pendingToolCalls.length) {
+      return;
+    }
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: pendingToolCalls.splice(0),
+    });
+  };
   for (const item of input) {
     if (typeof item === "string") {
+      flushPendingToolCalls();
       messages.push({ role: "user", content: item });
       continue;
     }
@@ -359,18 +489,18 @@ function responsesInputToMessages(input) {
       continue;
     }
     if (item.type === "function_call") {
-      messages.push({
-        role: "assistant",
-        content: "",
-        tool_calls: [{
-          id: item.call_id || item.id || "call_0",
-          type: "function",
-          function: { name: item.name || "", arguments: item.arguments || "" },
-        }],
+      pendingToolCalls.push({
+        id: item.call_id || item.id || "call_0",
+        type: "function",
+        function: {
+          name: item.name || "",
+          arguments: item.arguments || "",
+        },
       });
       continue;
     }
     if (item.type === "function_call_output") {
+      flushPendingToolCalls();
       messages.push({
         role: "tool",
         tool_call_id: item.call_id || "call_0",
@@ -378,12 +508,14 @@ function responsesInputToMessages(input) {
       });
       continue;
     }
+    flushPendingToolCalls();
     const role = normalizeRole(item.role || (item.type === "message" ? "user" : "user"));
     const content = responsesContentToChatContent(item.content || item);
     if (content !== "" && !(Array.isArray(content) && content.length === 0)) {
       messages.push({ role, content });
     }
   }
+  flushPendingToolCalls();
   return messages;
 }
 
@@ -441,10 +573,43 @@ function responsesToolsToChatTools(tools) {
       function: {
         name: tool.name || tool.function?.name || "",
         description: tool.description || tool.function?.description || "",
-        parameters: tool.parameters || tool.function?.parameters || {},
+        parameters: objectParametersSchema(tool.parameters || tool.function?.parameters),
       },
     }))
     .filter((tool) => tool.function.name);
+}
+
+function objectParametersSchema(schema) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    return { type: "object", properties: {} };
+  }
+  if (Array.isArray(schema.type)) {
+    if (schema.type.includes("object")) {
+      return { ...schema, type: "object", properties: objectProperties(schema.properties) };
+    }
+    return scalarParametersSchema(schema);
+  }
+  if (!schema.type) {
+    return { ...schema, type: "object", properties: objectProperties(schema.properties) };
+  }
+  if (schema.type === "object") {
+    return { ...schema, properties: objectProperties(schema.properties) };
+  }
+  return scalarParametersSchema(schema);
+}
+
+function scalarParametersSchema(schema) {
+  return {
+    type: "object",
+    properties: {
+      value: { ...schema },
+    },
+    required: ["value"],
+  };
+}
+
+function objectProperties(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
 function mergeAdjacentMessages(messages) {

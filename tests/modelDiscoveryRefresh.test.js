@@ -22,6 +22,7 @@ describe("Provider model discovery refresh", () => {
     assert.equal(result.refreshed, true);
     const models = await discoverModels(rootConfig);
     assert.equal(models[0].slug, "cline-pass-kimi-k2-6");
+    assert.equal(models[0].providerDisplayName, "ClinePass");
     assert.equal(models[0].displayName, "Kimi K2.6");
     assert.equal(models[0].contextWindow, 262000);
     assert.deepEqual(models[0].inputModalities, ["text", "image"]);
@@ -41,13 +42,20 @@ describe("Provider model discovery refresh", () => {
     const result = await lmStudioProvider.refreshModels(providerConfig, rootConfig, {
       fetch: async (url) => {
         assert.equal(url, "http://127.0.0.1:1234/v1/models");
-        return jsonResponse({ data: [{ id: "local-model", context_window: 32000 }] });
+        return jsonResponse({
+          data: [
+            { id: "local-model", context_window: 32000 },
+            { id: "text-embedding-nomic-embed-text-v1.5-embedding" },
+          ],
+        });
       },
     });
 
     assert.equal(result.refreshed, true);
     const models = await discoverModels(rootConfig);
+    assert.equal(models.length, 1);
     assert.equal(models[0].slug, "lm-studio-local-model");
+    assert.equal(models[0].providerDisplayName, "LM Studio");
     assert.equal(models[0].upstreamModel, "local-model");
     assert.deepEqual(models[0].inputModalities, ["text"]);
   });

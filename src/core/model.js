@@ -7,7 +7,7 @@ export function slugify(value) {
   return slug || "model";
 }
 
-export function normalizeModel(providerId, raw, index = 0) {
+export function normalizeModel(providerId, raw, index = 0, providerDisplayName = providerId) {
   const upstreamModel = raw.upstreamModel || raw.upstream_model || raw.model || raw.id || raw.slug;
   const displayName = raw.displayName || raw.display_name || raw.name || upstreamModel;
   const slug = raw.slug || slugify(`${providerId}-${upstreamModel}`);
@@ -15,6 +15,7 @@ export function normalizeModel(providerId, raw, index = 0) {
   return {
     slug,
     providerId,
+    providerDisplayName,
     upstreamModel,
     displayName,
     contextWindow: Number(raw.contextWindow || raw.context_window || raw.context || 128000),
@@ -34,4 +35,3 @@ export function normalizeModalities(value) {
   const normalized = modalities.map((item) => String(item).trim()).filter(Boolean);
   return normalized.length ? normalized : ["text"];
 }
-

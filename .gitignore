@@ -3,4 +3,6 @@ node_modules/
 dist/
 .shimex/
 *.log
-
+.env
+.env.*
+!.env.example

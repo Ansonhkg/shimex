@@ -14,6 +14,9 @@ provider gateway.
   context, or reasoning support.
 - Dynamic model discovery must be cache-backed and best-effort. Normal catalog
   reads should not require a live network call.
+- External-session providers must not publish picker models unless they can
+  validate the local auth reference or the config explicitly opts into showing
+  unauthenticated models.
 - No legacy, fallback, or compatibility code paths unless a current migration
   reason is written beside the code with a removal condition.
 
@@ -61,6 +64,24 @@ To add a provider:
 8. Add tests showing models appear in `/v1/models`, the Codex catalog, and
    at least one deterministic request route.
 
+Provider config and API keys:
+
+- Add provider routes in `shimex.yml`; do not hardcode secrets there.
+- Put local secrets in `.env` at the Shimex repo root. `.env` is ignored by
+  git and is loaded automatically before `shimex.yml` is expanded.
+- Add placeholder variable names to `.env.example` whenever a provider needs a
+  new secret, account id, endpoint, or token.
+- Use `auth: { type: env, name: PROVIDER_API_KEY }` for one secret or
+  `auth: { type: env, names: [...] }` when a provider accepts multiple env
+  names.
+- Use `${ENV_NAME}` interpolation in `shimex.yml` for endpoint fragments such
+  as account ids. Shell environment variables override `.env` values.
+- After changing `.env` or `shimex.yml`, restart Shimex with `npm start` so
+  the backend reloads env, refreshes model caches, and rewrites the Codex model
+  catalog.
+- Never print, commit, or copy real API keys into source, tests, docs, chat
+  transcripts, or generated catalogs. Tests should use fake placeholder values.
+
 OpenAI-compatible endpoint providers should use the shared
 `openai-compatible` provider shape. Do not create a bespoke provider for a
 normal OpenAI-compatible endpoint unless it has real auth, discovery, or
@@ -100,6 +121,11 @@ candidate exists.
 
 - Detect the source Codex app before install or sync.
 - Copy from the source app into a managed Shimex app.
+- On macOS, treat `/Applications/Codex.app` as read-only upstream input and
+  `~/Applications/Shimex.app` as the only mutable app bundle.
+- macOS icon changes must happen only inside the managed app copy: write or
+  replace `.icns` files under `Shimex.app/Contents/Resources/`, then update
+  `Shimex.app/Contents/Info.plist` `CFBundleIconFile`.
 - Store Shimex's Codex profile separately from the user's normal Codex profile.
 - Generated Codex config must point at Shimex's local `/v1` endpoint and model
   catalog.

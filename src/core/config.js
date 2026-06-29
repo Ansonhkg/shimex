@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
+import { loadProjectEnv } from "./env.js";
 import { expandEnv, expandHome, projectRoot } from "./paths.js";
 import { parseSimpleYaml } from "./simpleYaml.js";
 
 export async function loadShimexConfig(path = join(projectRoot(), "shimex.yml")) {
+  await loadProjectEnv();
   const text = await readFile(path, "utf8");
   const parsed = parseSimpleYaml(text);
   return normalizeConfig(parsed);
@@ -23,12 +25,21 @@ export function normalizeConfig(raw) {
     codex: {
       sourceApp: raw.codex?.source_app || "auto",
       managedAppName: raw.codex?.managed_app_name || "Shimex",
+      bundleIdentifier: raw.codex?.bundle_identifier || "xyz.shimex.app",
       managedAppPath: raw.codex?.managed_app_path || "~/Applications/Shimex.app",
       profileHome: raw.codex?.profile_home || "~/.shimex/codex-profile",
       userDataDir: raw.codex?.user_data_dir || "~/.shimex/codex-user-data",
+      iconPath: normalizeProjectPath(raw.codex?.icon_path || "icon.png"),
+      seedLocalAuth: raw.codex?.seed_local_auth !== false,
+      localAuthKey: String(raw.codex?.local_auth_key || "shimex-local-api-key"),
     },
     providers: (raw.providers || []).map((provider) => normalizeProviderConfig(provider)),
   };
+}
+
+function normalizeProjectPath(value) {
+  const expanded = expandEnv(String(value || ""));
+  return isAbsolute(expanded) ? expanded : resolve(projectRoot(), expanded);
 }
 
 function normalizeProviderConfig(provider) {

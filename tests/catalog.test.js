@@ -1,5 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { codexCatalogEntry } from "../src/clients/codex/catalog.js";
 import { loadShimexConfig } from "../src/core/config.js";
 import { slugify } from "../src/core/model.js";
@@ -12,6 +15,7 @@ describe("Shimex scaffold", () => {
     assert.ok(ids.includes("openai-compatible"));
     assert.ok(ids.includes("openai-responses"));
     assert.ok(ids.includes("anthropic"));
+    assert.ok(ids.includes("deepseek"));
     assert.ok(ids.includes("cloudflare-workers-ai"));
     assert.ok(ids.includes("ollama"));
     assert.ok(ids.includes("lm-studio"));
@@ -26,9 +30,26 @@ describe("Shimex scaffold", () => {
       slug: "vision-model",
       displayName: "Vision Model",
       providerId: "test",
+      providerDisplayName: "Test Provider",
       upstreamModel: "vision",
       contextWindow: 128000,
       inputModalities: ["text", "image"],
+    });
+    assert.equal(entry.display_name, "Test Provider: Vision Model");
+    assert.match(entry.description, /routed through Test Provider via Shimex/);
+    assert.deepEqual(entry.input_modalities, ["text", "image"]);
+    assert.equal(entry.supports_image_detail_original, true);
+  });
+
+  test("filters unsupported Codex catalog modalities", () => {
+    const entry = codexCatalogEntry({
+      slug: "multimodal-model",
+      displayName: "Multimodal Model",
+      providerId: "test",
+      providerDisplayName: "Test Provider",
+      upstreamModel: "multimodal",
+      contextWindow: 128000,
+      inputModalities: ["text", "image", "audio", "video"],
     });
     assert.deepEqual(entry.input_modalities, ["text", "image"]);
     assert.equal(entry.supports_image_detail_original, true);
@@ -39,6 +60,7 @@ describe("Shimex scaffold", () => {
       slug: "text-model",
       displayName: "Text Model",
       providerId: "test",
+      providerDisplayName: "Test Provider",
       upstreamModel: "text",
       contextWindow: 128000,
       inputModalities: ["text"],
@@ -65,8 +87,10 @@ describe("Shimex scaffold", () => {
       ],
     };
     const models = await discoverModels(config);
-    assert.ok(models.map((model) => model.slug).includes("openrouter-glm"));
-    assert.ok(models.map((model) => model.slug).includes("composer-2-5"));
+    const openRouter = models.find((model) => model.slug === "openrouter-glm");
+    const composer = models.find((model) => model.slug === "composer-2-5");
+    assert.equal(openRouter?.providerDisplayName, "OpenAI-Compatible Chat");
+    assert.equal(composer?.providerDisplayName, "Cursor Composer");
   });
 
   test("slugifies provider model IDs", () => {
@@ -76,7 +100,44 @@ describe("Shimex scaffold", () => {
   test("loads shimex.yml provider lists", async () => {
     const config = await loadShimexConfig();
     assert.equal(config.runtime.port, 18765);
+    assert.equal(config.codex.seedLocalAuth, true);
+    assert.equal(config.codex.localAuthKey, "shimex-local-api-key");
+    assert.equal(config.codex.bundleIdentifier, "xyz.shimex.app");
+    assert.ok(config.codex.iconPath.endsWith("/icon.png"));
     assert.ok(config.providers.map((provider) => provider.id).includes("cline-pass"));
     assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
+    assert.ok(config.providers.find((provider) => provider.id === "deepseek")?.models.some((model) => model.slug === "deepseek-v4-pro"));
+    assert.ok(config.providers.find((provider) => provider.id === "cloudflare-workers-ai")?.models.some((model) => model.slug === "cloudflare-glm-5-2"));
+    assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, false);
+  });
+
+  test("hides ChatGPT Codex models when external auth is unavailable", async () => {
+    const missingAuthPath = join(await mkdtemp(join(tmpdir(), "shimex-auth-")), "missing-auth.json");
+    const models = await discoverModels({
+      providers: [{
+        id: "chatgpt-codex",
+        enabled: true,
+        auth: { type: "external-codex-login", path: missingAuthPath },
+        models: [],
+        options: {},
+      }],
+    });
+    assert.deepEqual(models, []);
+  });
+
+  test("can expose ChatGPT Codex models when explicit external auth exists", async () => {
+    const authPath = join(await mkdtemp(join(tmpdir(), "shimex-auth-")), "auth.json");
+    await writeFile(authPath, JSON.stringify({ tokens: { access_token: "codex-token" } }));
+    const models = await discoverModels({
+      providers: [{
+        id: "chatgpt-codex",
+        enabled: true,
+        auth: { type: "external-codex-login", path: authPath },
+        models: [],
+        options: {},
+      }],
+    });
+    assert.equal(models[0]?.slug, "gpt-5-5");
+    assert.equal(models[0]?.providerDisplayName, "ChatGPT Codex");
   });
 });

@@ -12,6 +12,8 @@ export function resolveCodexPaths(config) {
     userDataDir: expandHome(config.codex.userDataDir),
     catalogPath: join(expandHome(config.runtime.home), "codex-model-catalog.json"),
     configPath: join(expandHome(config.codex.profileHome), "config.toml"),
+    authPath: join(expandHome(config.codex.profileHome), "auth.json"),
+    globalStatePath: join(expandHome(config.codex.profileHome), ".codex-global-state.json"),
   };
 }
 
@@ -39,4 +41,3 @@ export function codexConfigText(config, defaultModelSlug) {
 function tomlEscape(value) {
   return String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
-

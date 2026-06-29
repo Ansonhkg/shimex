@@ -41,7 +41,7 @@ export async function refreshOpenAiCompatibleModels(config, rootConfig, provider
 
 function normalizeModelsPayload(providerId, payload) {
   const data = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
-  return data.map((entry) => {
+  return data.filter(isSupportedChatModel).map((entry) => {
     const upstreamModel = String(entry?.id || entry?.name || "").trim();
     if (!upstreamModel) {
       return null;
@@ -60,3 +60,7 @@ function normalizeModelsPayload(providerId, payload) {
   }).filter(Boolean);
 }
 
+function isSupportedChatModel(entry) {
+  const id = String(entry?.id || entry?.name || "").toLowerCase();
+  return Boolean(id) && !id.includes("embedding") && !id.includes("embed");
+}

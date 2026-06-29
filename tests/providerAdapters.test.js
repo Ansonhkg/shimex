@@ -38,6 +38,96 @@ describe("Provider request adapters", () => {
     assert.equal(payload.output[0].content[0].text, "hello back");
   });
 
+  test("normalizes Responses tool parameter schemas for OpenAI-compatible chat endpoints", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "lm-studio",
+        endpoint: "http://127.0.0.1:1234/v1",
+        models: [modelConfig({ slug: "lm-local", upstreamModel: "local-upstream" })],
+      }),
+      "/v1/responses",
+      {
+        model: "lm-local",
+        input: "hello",
+        stream: false,
+        tools: [
+          { type: "function", name: "missing_parameters" },
+          { type: "function", name: "missing_type", parameters: { properties: { path: { type: "string" } } } },
+          { type: "function", name: "nullable_object", parameters: { type: ["object", "null"], properties: { path: { type: "string" } } } },
+          { type: "function", name: "scalar_schema", parameters: { type: "string" } },
+        ],
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            created: 123,
+            model: "local-upstream",
+            choices: [{ message: { role: "assistant", content: "hello back" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.parameters.type), ["object", "object", "object", "object"]);
+    assert.deepEqual(upstreamBody.tools[0].function.parameters.properties, {});
+    assert.deepEqual(upstreamBody.tools[1].function.parameters.required, undefined);
+    assert.equal(upstreamBody.tools[2].function.parameters.properties.path.type, "string");
+    assert.deepEqual(upstreamBody.tools[3].function.parameters.required, ["value"]);
+  });
+
+  test("converts Responses function call outputs into valid chat tool turns", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "lm-studio",
+        endpoint: "http://127.0.0.1:1234/v1",
+        models: [modelConfig({ slug: "lm-local", upstreamModel: "local-upstream" })],
+      }),
+      "/v1/responses",
+      {
+        model: "lm-local",
+        input: [
+          { role: "user", content: [{ type: "input_text", text: "list admin files" }] },
+          { type: "function_call", call_id: "call_1", name: "list_files", arguments: "{\"path\":\"src/admin\"}" },
+          { type: "function_call_output", call_id: "call_1", output: "page.js" },
+        ],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            created: 123,
+            model: "local-upstream",
+            choices: [{ message: { role: "assistant", content: "Next I will open page.js." } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.deepEqual(upstreamBody.messages, [
+      { role: "user", content: "list admin files" },
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call_1",
+          type: "function",
+          function: { name: "list_files", arguments: "{\"path\":\"src/admin\"}" },
+        }],
+      },
+      { role: "tool", tool_call_id: "call_1", content: "page.js" },
+    ]);
+  });
+
   test("rejects image input when configured model is text-only", async () => {
     const result = await handleProviderModelRequest(
       testConfig({

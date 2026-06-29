@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 import { discoverModels, refreshProviderModelCaches } from "../../core/modelDiscovery.js";
@@ -28,6 +28,8 @@ export async function planCodexInstall(config) {
       { type: "copy", from: paths.sourceApp, to: paths.managedApp },
       { type: "write", path: paths.catalogPath },
       { type: "write", path: paths.configPath },
+      { type: "write", path: paths.authPath },
+      { type: "write", path: paths.globalStatePath },
     ],
     originalCodexUntouched: true,
   };
@@ -58,6 +60,39 @@ export async function syncCodexClient(config, options = {}) {
   return installCodexClient(config, options);
 }
 
+export async function startCodexClient(config, args = []) {
+  const plan = await planCodexInstall(config);
+  const needsAppSync = !plan.managedShimexApp.exists
+    || plan.sourceCodexApp.version !== plan.managedShimexApp.version
+    || plan.sourceCodexApp.build !== plan.managedShimexApp.build;
+  await refreshProviderModelCaches(config);
+  const models = await discoverModels(config);
+  let sync = null;
+  let patch = null;
+  let profile = null;
+  if (needsAppSync) {
+    sync = await syncCodexClient(config, { apply: true, models });
+  } else {
+    try {
+      patch = await patchManagedCodexApp(config);
+      profile = await writeCodexProfile(config, models);
+    } catch (error) {
+      if (!isManagedAppWriteError(error)) {
+        throw error;
+      }
+      sync = await syncCodexClient(config, { apply: true, models });
+    }
+  }
+  const open = await openCodexClient(config, args);
+  return {
+    started: true,
+    sync,
+    patch,
+    profile,
+    open,
+  };
+}
+
 export async function writeCodexProfile(config, models = null) {
   if (!models) {
     await refreshProviderModelCaches(config);
@@ -71,9 +106,13 @@ export async function writeCodexProfile(config, models = null) {
   await mkdir(paths.profileHome, { recursive: true });
   await writeFile(paths.catalogPath, `${JSON.stringify(generateCodexCatalog(resolvedModels), null, 2)}\n`);
   await writeFile(paths.configPath, codexConfigText(config, resolvedModels[0].slug));
+  const auth = await writeCodexAuth(config, paths);
+  const desktopState = await writeCodexDesktopState(paths);
   return {
     catalogPath: paths.catalogPath,
     configPath: paths.configPath,
+    authPath: auth.path,
+    globalStatePath: desktopState.path,
     defaultModel: resolvedModels[0].slug,
   };
 }
@@ -99,6 +138,7 @@ export async function openCodexClient(config, args = []) {
       env: {
         ...process.env,
         CODEX_HOME: paths.profileHome,
+        OPENAI_API_KEY: localAuthKey(config),
         NO_PROXY: prependLoopbackNoProxy(process.env.NO_PROXY),
         no_proxy: prependLoopbackNoProxy(process.env.no_proxy),
       },
@@ -116,11 +156,72 @@ export async function openCodexClient(config, args = []) {
   };
 }
 
+async function writeCodexAuth(config, paths) {
+  if (config.codex.seedLocalAuth === false) {
+    return { path: paths.authPath, written: false };
+  }
+  const auth = {
+    auth_mode: "apikey",
+    OPENAI_API_KEY: localAuthKey(config),
+    tokens: null,
+    last_refresh: null,
+  };
+  await writeFile(paths.authPath, `${JSON.stringify(auth, null, 2)}\n`, { mode: 0o600 });
+  await chmod(paths.authPath, 0o600).catch(() => {});
+  return { path: paths.authPath, written: true };
+}
+
+function localAuthKey(config) {
+  return config.codex.localAuthKey || "shimex-local-api-key";
+}
+
+async function writeCodexDesktopState(paths) {
+  const existing = await readJson(paths.globalStatePath);
+  const atomState = {
+    ...objectOrEmpty(existing["electron-persisted-atom-state"]),
+    "electron:onboarding-hide-first-new-thread-promos": true,
+    "electron:onboarding-override": "auto",
+    "electron:onboarding-plugin-checklist-active": false,
+    "electron:onboarding-primary-runtime-install-ready": true,
+    "electron:onboarding-projectless-completed": true,
+    "electron:onboarding-welcome-pending": false,
+    "electron:onboarding-welcome-v2-role-state": {
+      roles: ["default"],
+      personalizedSuggestionsEnabled: false,
+      workMode: "coding",
+    },
+    last_completed_onboarding: Math.floor(Date.now() / 1000),
+  };
+  const state = {
+    ...existing,
+    "desktop-first-seen-at-ms": existing["desktop-first-seen-at-ms"] || Date.now(),
+    "electron-persisted-atom-state": atomState,
+  };
+  await writeFile(paths.globalStatePath, `${JSON.stringify(state, null, 2)}\n`);
+  return { path: paths.globalStatePath, written: true };
+}
+
+async function readJson(path) {
+  try {
+    return JSON.parse(await readFile(path, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function objectOrEmpty(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 async function copyManagedApp(sourceApp, managedApp) {
   assertManagedAppPath(managedApp);
   await mkdir(dirname(managedApp), { recursive: true });
   await rm(managedApp, { recursive: true, force: true });
-  await cp(sourceApp, managedApp, { recursive: true, preserveTimestamps: true });
+  await run("ditto", ["--noextattr", "--noqtn", sourceApp, managedApp]);
+}
+
+function isManagedAppWriteError(error) {
+  return error && typeof error === "object" && error.code === "EPERM";
 }
 
 function assertInstallPlanSafe(plan) {
@@ -177,6 +278,20 @@ async function readPlistString(appPath, key) {
 function prependLoopbackNoProxy(value = "") {
   const prefix = "127.0.0.1,localhost,::1";
   return value ? `${prefix},${value}` : prefix;
+}
+
+function run(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: "inherit" });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} ${args.join(" ")} exited with ${code}`));
+      }
+    });
+  });
 }
 
 function escapeRegExp(value) {

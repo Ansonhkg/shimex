@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import { expandHome } from "../../core/paths.js";
 import { resolveCodexPaths } from "./paths.js";
 
@@ -21,6 +22,12 @@ const SIDEBAR_RECENT_THREADS_PATCH = {
   replace: "$1modelProviders:[]$2",
 };
 const BUNDLE_PATCHES = [MODEL_PICKER_PATCH, SIDEBAR_RECENT_THREADS_PATCH];
+const ICON_CANVAS_SIZE = 1024;
+const ICON_TILE_MARGIN = 0;
+const ICON_TILE_RADIUS = 220;
+const ICON_ARTWORK_SIZE = 1060;
+const ICON_ARTWORK_OFFSET_X = 62;
+const ICON_ARTWORK_OFFSET_Y = 10;
 
 export async function patchManagedCodexApp(config) {
   if (process.platform !== "darwin") {
@@ -33,11 +40,14 @@ export async function patchManagedCodexApp(config) {
     return { patched: false, reason: "managed-app-asar-missing" };
   }
 
+  await makeManagedAppWritable(paths.managedApp);
   const runtimeHome = expandHome(config.runtime.home);
   await mkdir(runtimeHome, { recursive: true });
   await backupOnce(appAsar, join(runtimeHome, APP_ASAR_BACKUP_NAME));
   await backupOnce(infoPlist, join(runtimeHome, INFO_PLIST_BACKUP_NAME));
   await backupOnce(appAsar, join(runtimeHome, `${APP_ASAR_BACKUP_NAME}.${(await fileHash(appAsar)).slice(0, 12)}`));
+  await updateManagedBundleMetadata(config, infoPlist);
+  const iconPatch = await updateManagedAppIcon(config, paths.managedApp, infoPlist);
 
   const workdir = join(runtimeHome, "app-asar-work");
   await rm(workdir, { recursive: true, force: true });
@@ -45,12 +55,16 @@ export async function patchManagedCodexApp(config) {
   await run("npx", ["--yes", "asar", "extract", appAsar, workdir]);
   const changed = await patchExtractedBundles(workdir);
   if (!changed.changed) {
-    return { patched: false, reason: changed.reason || "already-patched" };
+    if (iconPatch.changed) {
+      await signManagedApp(paths.managedApp);
+      return { patched: true, appAsar, infoPlist, icon: iconPatch, bundleReason: changed.reason || "already-patched" };
+    }
+    return { patched: false, reason: changed.reason || "already-patched", icon: iconPatch };
   }
   await run("npx", ["--yes", "asar", "pack", workdir, appAsar]);
   await updateAsarIntegrity(appAsar, infoPlist);
   await signManagedApp(paths.managedApp);
-  return { patched: true, appAsar, infoPlist };
+  return { patched: true, appAsar, infoPlist, icon: iconPatch };
 }
 
 export async function patchExtractedBundles(workdir) {
@@ -109,6 +123,218 @@ async function signManagedApp(managedApp) {
   // The nested Electron/Chromium frameworks are copied unchanged; signing only
   // the outer app refreshes the local bundle seal for the patched app.asar.
   await run("codesign", ["--force", "--sign", "-", managedApp]);
+  await refreshLaunchServicesRegistration(managedApp);
+}
+
+async function refreshLaunchServicesRegistration(managedApp) {
+  await runOptional("touch", ["-c", managedApp]);
+  await runOptional("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", managedApp]);
+}
+
+async function makeManagedAppWritable(managedApp) {
+  for (const attribute of ["com.apple.provenance", "com.apple.quarantine"]) {
+    await runOptional("xattr", ["-dr", attribute, managedApp]);
+  }
+}
+
+async function updateManagedAppIcon(config, managedApp, infoPlist) {
+  const iconPath = config.codex.iconPath;
+  if (!iconPath || !await exists(iconPath)) {
+    return { changed: false, reason: "icon-source-missing", iconPath };
+  }
+  const resources = join(managedApp, "Contents", "Resources");
+  if (!await exists(resources)) {
+    return { changed: false, reason: "resources-dir-missing", iconPath };
+  }
+  const tempRoot = await mkdtemp(join(tmpdir(), "shimex-icns-"));
+  const normalizedIconPath = join(tempRoot, "normalized-icon.png");
+  const tempIcns = join(tempRoot, "app.icns");
+  const icnsPath = join(resources, "app.icns");
+  try {
+    const normalized = await normalizeIconPng(iconPath, normalizedIconPath);
+    const sourceForBundle = normalized ? normalizedIconPath : iconPath;
+    await copyPngIcons(sourceForBundle, resources);
+    await generateIcns(sourceForBundle, tempIcns);
+    for (const name of ["app.icns", "electron.icns"]) {
+      await cp(tempIcns, join(resources, name));
+    }
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+  await setBundleIcon(infoPlist, "app");
+  return { changed: true, iconPath, icnsPath };
+}
+
+async function updateManagedBundleMetadata(config, infoPlist) {
+  const name = config.codex.managedAppName || "Shimex";
+  const bundleIdentifier = config.codex.bundleIdentifier || "xyz.shimex.app";
+  await setPlistString(infoPlist, "CFBundleName", name);
+  await setPlistString(infoPlist, "CFBundleDisplayName", name);
+  await setPlistString(infoPlist, "CFBundleIdentifier", bundleIdentifier);
+}
+
+async function copyPngIcons(iconPath, resources) {
+  const targets = [
+    "icon.png",
+    "icon-codex-dark-color.png",
+    "icon-codex-light.png",
+    join("default_app", "icon.png"),
+  ];
+  for (const target of targets) {
+    const path = join(resources, target);
+    await mkdir(dirname(path), { recursive: true });
+    await cp(iconPath, path);
+  }
+}
+
+async function generateIcns(iconPath, outputPath) {
+  const root = await mkdtemp(join(tmpdir(), "shimex-icon-"));
+  const sizes = [
+    ["icp4", 16],
+    ["icp5", 32],
+    ["icp6", 64],
+    ["ic07", 128],
+    ["ic08", 256],
+    ["ic09", 512],
+    ["ic10", 1024],
+  ];
+  try {
+    const chunks = [];
+    for (const [type, size] of sizes) {
+      const pngPath = join(root, `${size}.png`);
+      await resizePng(iconPath, pngPath, size);
+      chunks.push(icnsChunk(type, await readFile(pngPath)));
+    }
+    await writeFile(outputPath, icnsFile(chunks));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function normalizeIconPng(iconPath, outputPath) {
+  if (!await commandAvailable("magick")) {
+    return false;
+  }
+  const root = await mkdtemp(join(tmpdir(), "shimex-normalized-icon-"));
+  const backgroundPath = join(root, "background.png");
+  const artworkPath = join(root, "artwork.png");
+  try {
+    await run("magick", [
+      "-size",
+      `${ICON_CANVAS_SIZE}x${ICON_CANVAS_SIZE}`,
+      "xc:none",
+      "-colorspace",
+      "sRGB",
+      "-type",
+      "TrueColorAlpha",
+      "-fill",
+      "rgba(255,255,255,1)",
+      "-draw",
+      `roundrectangle ${ICON_TILE_MARGIN},${ICON_TILE_MARGIN} ${ICON_CANVAS_SIZE - ICON_TILE_MARGIN},${ICON_CANVAS_SIZE - ICON_TILE_MARGIN} ${ICON_TILE_RADIUS},${ICON_TILE_RADIUS}`,
+      `PNG32:${backgroundPath}`,
+    ]);
+    await run("magick", [
+      iconPath,
+      "-alpha",
+      "on",
+      "-trim",
+      "+repage",
+      "-resize",
+      `${ICON_ARTWORK_SIZE}x${ICON_ARTWORK_SIZE}`,
+      `PNG32:${artworkPath}`,
+    ]);
+    await run("magick", [
+      backgroundPath,
+      "(",
+      artworkPath,
+      ")",
+      "-gravity",
+      "center",
+      "-geometry",
+      `${signedOffset(ICON_ARTWORK_OFFSET_X)}${signedOffset(ICON_ARTWORK_OFFSET_Y)}`,
+      "-compose",
+      "over",
+      "-composite",
+      `PNG32:${outputPath}`,
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+  return true;
+}
+
+function signedOffset(value) {
+  return value < 0 ? String(value) : `+${value}`;
+}
+
+function icnsFile(chunks) {
+  const totalLength = 8 + chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const header = Buffer.alloc(8);
+  header.write("icns", 0, "ascii");
+  header.writeUInt32BE(totalLength, 4);
+  return Buffer.concat([header, ...chunks], totalLength);
+}
+
+function icnsChunk(type, data) {
+  const chunk = Buffer.alloc(8 + data.length);
+  chunk.write(type, 0, "ascii");
+  chunk.writeUInt32BE(chunk.length, 4);
+  data.copy(chunk, 8);
+  return chunk;
+}
+
+async function resizePng(iconPath, outputPath, size) {
+  if (await commandAvailable("magick")) {
+    await run("magick", [
+      iconPath,
+      "-resize",
+      `${size}x${size}`,
+      "-background",
+      "none",
+      "-gravity",
+      "center",
+      "-extent",
+      `${size}x${size}`,
+      `PNG32:${outputPath}`,
+    ]);
+    return;
+  }
+  await run("sips", ["-s", "format", "png", "-z", String(size), String(size), iconPath, "--out", outputPath]);
+}
+
+async function setBundleIcon(infoPlist, iconName) {
+  await setPlistString(infoPlist, "CFBundleIconFile", iconName);
+  await deletePlistKey(infoPlist, "CFBundleIconName");
+}
+
+async function setPlistString(infoPlist, key, value) {
+  await run("plutil", ["-convert", "xml1", infoPlist]);
+  const text = await readFile(infoPlist, "utf8");
+  const escapedValue = escapeXml(value);
+  const pattern = new RegExp(`(<key>${escapeRegExp(key)}<\\/key>\\s*<string>)([^<]*)(<\\/string>)`);
+  if (pattern.test(text)) {
+    await writeFile(infoPlist, text.replace(pattern, `$1${escapedValue}$3`));
+    return;
+  }
+  await writeFile(infoPlist, text.replace("</dict>", `  <key>${key}</key>\n  <string>${escapedValue}</string>\n</dict>`));
+}
+
+async function deletePlistKey(infoPlist, key) {
+  await run("plutil", ["-convert", "xml1", infoPlist]);
+  const text = await readFile(infoPlist, "utf8");
+  const pattern = new RegExp(`\\s*<key>${escapeRegExp(key)}<\\/key>\\s*<[^>]+>[^<]*<\\/[^>]+>`);
+  await writeFile(infoPlist, text.replace(pattern, ""));
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function appAsarHeaderHash(path) {
@@ -158,6 +384,22 @@ function run(command, args) {
         reject(new Error(`${command} ${args.join(" ")} exited with ${code}`));
       }
     });
+  });
+}
+
+function runOptional(command, args) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("exit", (code) => resolve(code === 0));
+  });
+}
+
+function commandAvailable(command) {
+  return new Promise((resolve) => {
+    const child = spawn(command, ["-version"], { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("exit", (code) => resolve(code === 0));
   });
 }
 

@@ -10,10 +10,13 @@ export function adminPage() {
     body { margin: 32px; max-width: 960px; }
     h1 { font-size: 24px; margin: 0 0 8px; }
     h2 { font-size: 16px; margin-top: 28px; }
-    button { margin: 0 8px 8px 0; padding: 6px 10px; }
+    button { min-width: 150px; margin: 0; padding: 6px 10px; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border-bottom: 1px solid CanvasText; padding: 8px; text-align: left; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .actions { display: grid; gap: 10px; margin: 12px 0; }
+    .action-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .action-copy { margin: 0; }
     .muted { opacity: 0.72; }
   </style>
 </head>
@@ -23,12 +26,27 @@ export function adminPage() {
   <h2>Health</h2>
   <pre id="health">loading...</pre>
   <h2>Codex App</h2>
-  <div>
-    <button data-action="/api/install">Plan install</button>
-    <button data-action="/api/install?apply=1">Install</button>
-    <button data-action="/api/sync">Plan sync</button>
-    <button data-action="/api/sync?apply=1">Sync</button>
-    <button data-action="/api/open">Open</button>
+  <div class="actions">
+    <div class="action-row">
+      <button data-action="/api/install">Preview setup</button>
+      <p class="action-copy muted">Show the app copy, profile, catalog, and auth files Shimex would create. No files are changed.</p>
+    </div>
+    <div class="action-row">
+      <button data-action="/api/install?apply=1">Set up app</button>
+      <p class="action-copy muted">Create or replace the managed Shimex app and write its Codex profile.</p>
+    </div>
+    <div class="action-row">
+      <button data-action="/api/sync">Preview update</button>
+      <p class="action-copy muted">Show what would be refreshed from the current Codex app and provider model list. No files are changed.</p>
+    </div>
+    <div class="action-row">
+      <button data-action="/api/sync?apply=1">Update app</button>
+      <p class="action-copy muted">Refresh the managed Shimex app, profile, and model catalog.</p>
+    </div>
+    <div class="action-row">
+      <button data-action="/api/open">Open Shimex</button>
+      <p class="action-copy muted">Set up or update the managed app if needed, start the local backend, and launch Shimex.</p>
+    </div>
   </div>
   <pre id="action"></pre>
   <h2>Models</h2>

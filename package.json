@@ -9,7 +9,10 @@
   },
   "scripts": {
     "shimex": "node src/cli/main.js",
-    "start": "node src/cli/main.js server start",
+    "start": "node src/cli/main.js start",
+    "dev": "node src/cli/main.js dev",
+    "status": "node src/cli/main.js status",
+    "stop": "node src/cli/main.js stop",
     "test": "node --test",
     "check": "npm test && npm run shimex -- doctor"
   },

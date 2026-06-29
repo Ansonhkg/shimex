@@ -10,9 +10,12 @@ runtime:
 codex:
   source_app: auto
   managed_app_name: Shimex
+  bundle_identifier: xyz.shimex.app
   managed_app_path: ~/Applications/Shimex.app
   profile_home: ~/.shimex/codex-profile
   user_data_dir: ~/.shimex/codex-user-data
+  icon_path: icon.png
+  seed_local_auth: true
 
 providers:
   - id: cline-pass
@@ -24,11 +27,7 @@ providers:
     enabled: true
     endpoint: http://127.0.0.1:1234/v1
     models:
-      - slug: lm-studio-local
-        display_name: LM Studio Local
-        upstream_model: local-model
-        context_window: 128000
-        input_modalities: [text]
+      refresh: on_start
 
   - id: openai-compatible
     enabled: true
@@ -54,13 +53,36 @@ providers:
       name: ANTHROPIC_API_KEY
     models: []
 
+  - id: deepseek
+    enabled: true
+    endpoint: https://api.deepseek.com/anthropic
+    auth:
+      type: env
+      name: DEEPSEEK_API_KEY
+    models:
+      - slug: deepseek-v4-pro
+        display_name: DeepSeek V4 Pro
+        upstream_model: deepseek-v4-pro
+        context_window: 131072
+        input_modalities: [text]
+      - slug: deepseek-v4-flash
+        display_name: DeepSeek V4 Flash
+        upstream_model: deepseek-v4-flash
+        context_window: 131072
+        input_modalities: [text]
+
   - id: cloudflare-workers-ai
     enabled: true
     endpoint: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
     auth:
       type: env
       name: CLOUDFLARE_AUTH_TOKEN
-    models: []
+    models:
+      - slug: cloudflare-glm-5-2
+        display_name: Cloudflare GLM 5.2
+        upstream_model: "@cf/zai-org/glm-5.2"
+        context_window: 131072
+        input_modalities: [text]
 
   - id: ollama
     enabled: true
@@ -68,7 +90,7 @@ providers:
     models: []
 
   - id: chatgpt-codex
-    enabled: true
+    enabled: false
     auth:
       type: external-codex-login
 

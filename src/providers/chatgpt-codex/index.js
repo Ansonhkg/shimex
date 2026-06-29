@@ -1,3 +1,5 @@
+import { readCodexAuth } from "./auth.js";
+
 export const chatgptCodexProvider = {
   id: "chatgpt-codex",
   displayName: "ChatGPT Codex",
@@ -6,7 +8,13 @@ export const chatgptCodexProvider = {
   auth: { type: "external-codex-login" },
   capabilitySource: "codex-model-cache",
   requestAdapter: "chatgpt-codex-passthrough",
-  discoverModels() {
+  async discoverModels(config) {
+    if (config.options?.show_without_auth !== true) {
+      const auth = await readCodexAuth({ authPath: codexAuthPath(config) });
+      if (!auth) {
+        return [];
+      }
+    }
     return [
       {
         slug: "gpt-5-5",
@@ -20,3 +28,6 @@ export const chatgptCodexProvider = {
   },
 };
 
+function codexAuthPath(config) {
+  return config.auth?.path || config.options?.auth_path || config.options?.authPath;
+}

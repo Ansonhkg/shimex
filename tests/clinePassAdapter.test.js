@@ -75,6 +75,45 @@ describe("ClinePass adapter", () => {
     assert.match(text, /response.completed/);
   });
 
+  test("streams chat tool calls as Responses function call events", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const result = await handleClinePassModelRequest(
+      { model: "cline-pass-glm-5-2", input: "hello", stream: true },
+      {
+        providerSettingsPath,
+        fetch: async (url) => {
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return new Response(
+            [
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"shell","arguments":"{\\"cmd\\""}}]}}]}\n\n',
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"ls\\"}"}}]}}]}\n\n',
+              'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+              "data: [DONE]\n\n",
+            ].join(""),
+            { headers: { "content-type": "text/event-stream" } },
+          );
+        },
+      },
+    );
+    assert.equal(result.status, 200);
+    const writes = [];
+    await result.stream({ write: (chunk) => writes.push(String(chunk)) });
+    const text = writes.join("");
+    assert.match(text, /response.output_item.added/);
+    assert.match(text, /function_call/);
+    assert.match(text, /response.function_call_arguments.delta/);
+    assert.match(text, /response.function_call_arguments.done/);
+    assert.match(text, /response.output_item.done/);
+    assert.match(text, /"name":"shell"/);
+    assert.match(text, /"arguments":"{\\"cmd\\":\\"ls\\"}"/);
+    assert.match(text, /response.completed/);
+    const completed = sseEvents(text).find((event) => event.type === "response.completed");
+    assert.equal(completed.response.output.length, 1);
+    assert.equal(completed.response.output[0].type, "function_call");
+  });
+
   test("rejects image input for text-only ClinePass models", async () => {
     const result = await handleClinePassModelRequest({
       model: "cline-pass-glm-5-2",
@@ -116,4 +155,14 @@ function jsonResponse(payload, status = 200) {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+function sseEvents(text) {
+  return text
+    .split("\n\n")
+    .flatMap((event) => event.split(/\r?\n/))
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => line.slice("data: ".length).trim())
+    .filter((data) => data && data !== "[DONE]")
+    .map((data) => JSON.parse(data));
 }

@@ -3,7 +3,7 @@ import { adminPage } from "../admin/page.js";
 import { discoverModels, refreshProviderModelCaches } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
-import { installCodexClient, openCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
+import { installCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { handleProviderModelRequest } from "../providers/adapter.js";
 import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
 
@@ -12,7 +12,7 @@ export async function createServer(config) {
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);
-      const result = await routeRequest(config, request, url);
+      const result = await routeRequest(config, request, url, { stop: () => server.close() });
       writeResponse(response, result);
     } catch (error) {
       writeResponse(response, json({ error: String(error?.message || error) }, { status: 500 }));
@@ -29,7 +29,7 @@ export async function createServer(config) {
   };
 }
 
-async function routeRequest(config, request, url) {
+async function routeRequest(config, request, url, control = {}) {
   const method = request.method || "GET";
   const pathname = url.pathname;
   if (method === "GET" && pathname === "/health") {
@@ -67,10 +67,17 @@ async function routeRequest(config, request, url) {
     return json(await syncCodexClient(config, { apply: url.searchParams.get("apply") === "1" }));
   }
   if (method === "POST" && pathname === "/api/open") {
-    return json(await openCodexClient(config));
+    return json(await startCodexClient(config));
+  }
+  if (method === "POST" && pathname === "/api/stop") {
+    return {
+      ...json({ ok: true, stopping: true }),
+      afterWrite: () => control.stop?.(),
+    };
   }
   if (method === "POST" && routeIsModelRequest(pathname)) {
     const body = await readJsonBody(request);
+    logIncomingModelRequest(pathname, body);
     const clinePass = await handleClinePassModelRequest(body);
     if (clinePass) {
       return clinePass;
@@ -116,6 +123,7 @@ function writeResponse(response, result) {
   }
   response.writeHead(result.status, result.headers);
   response.end(result.body);
+  result.afterWrite?.();
 }
 
 async function readJsonBody(request) {
@@ -125,6 +133,36 @@ async function readJsonBody(request) {
   }
   const text = Buffer.concat(chunks).toString("utf8");
   return text ? JSON.parse(text) : {};
+}
+
+function logIncomingModelRequest(pathname, body) {
+  try {
+    const tools = Array.isArray(body.tools) ? body.tools : [];
+    const toolNames = tools.slice(0, 8).flatMap((tool) => {
+      const name = tool?.name || tool?.function?.name || tool?.type;
+      return name ? [String(name)] : [];
+    });
+    const input = Array.isArray(body.input) ? body.input : [];
+    const inputSummary = input.slice(-8).flatMap((item) => {
+      if (!item || typeof item !== "object") {
+        return typeof item === "string" ? ["text"] : [];
+      }
+      const type = item.type || item.role || "?";
+      if (type === "function_call") {
+        return [`function_call(${String(item.name || "?")})`];
+      }
+      if (type === "function_call_output") {
+        return [`function_call_output(${String(item.call_id || "").slice(0, 24)})`];
+      }
+      return [String(type)];
+    });
+    console.log(
+      `[req] ${pathname} model=${JSON.stringify(body.model || "")} stream=${JSON.stringify(Boolean(body.stream))} `
+        + `tools=${tools.length} (${toolNames.join(",")}) input=${input.length} (${inputSummary.join(",")})`,
+    );
+  } catch (error) {
+    console.log(`[req] failed to summarize request: ${String(error?.message || error)}`);
+  }
 }
 
 function listen(server, port, host) {

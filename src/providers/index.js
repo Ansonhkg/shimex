@@ -4,6 +4,7 @@ import { chatgptCodexProvider } from "./chatgpt-codex/index.js";
 import { clinePassProvider } from "./cline-pass/index.js";
 import { cloudflareWorkersAiProvider } from "./cloudflare-workers-ai/index.js";
 import { cursorComposerProvider } from "./cursor-composer/index.js";
+import { deepSeekProvider } from "./deepseek/index.js";
 import { lmStudioProvider } from "./lm-studio/index.js";
 import { ollamaProvider } from "./ollama/index.js";
 import { openaiCompatibleProvider } from "./openai-compatible/index.js";
@@ -16,6 +17,7 @@ const providers = [
   clinePassProvider,
   cloudflareWorkersAiProvider,
   cursorComposerProvider,
+  deepSeekProvider,
   lmStudioProvider,
   ollamaProvider,
   openaiCompatibleProvider,
@@ -29,4 +31,3 @@ export function listProviderManifests() {
 export function getProviderManifest(id) {
   return providers.find((provider) => provider.id === id) || null;
 }
-

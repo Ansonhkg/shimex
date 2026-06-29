@@ -15,7 +15,7 @@ export async function discoverModels(config) {
       ? await provider.discoverModels(providerConfig, config)
       : providerConfig.models;
     discovered.forEach((model, index) => {
-      models.push(normalizeModel(provider.id, model, models.length + index));
+      models.push(normalizeModel(provider.id, model, models.length + index, provider.displayName));
     });
   }
   return dedupeSlugs(models);
