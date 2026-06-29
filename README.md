@@ -1,0 +1,49 @@
+# Shimex
+
+Shimex is a local JavaScript/Bun provider gateway for Codex Desktop.
+
+It expects the user to have Codex Desktop installed, copies that app into a
+managed Shimex app, and points the managed copy at a local OpenAI-compatible
+server and generated model catalog. The original Codex app remains untouched.
+
+## Current Shape
+
+- `shimex.yml` as the source of truth.
+- Provider modules for the Codex-shim provider families.
+- Codex Desktop as the only client target.
+- Bare local admin UI exposed by the Shimex server.
+
+## Quick Start
+
+```bash
+cd ~/Projects/shimex
+bun run shimex help
+bun run shimex doctor
+bun run shimex providers list
+bun run shimex models list
+bun run shimex server start
+```
+
+Open the admin UI at:
+
+```text
+http://127.0.0.1:8765/admin
+```
+
+## Provider Families
+
+Shimex is being ported from `codex-shim` with these provider families:
+
+- OpenAI-compatible chat endpoints
+- OpenAI Responses-compatible endpoints
+- Anthropic Messages
+- Cloudflare Workers AI
+- Ollama and LM Studio local OpenAI-compatible endpoints
+- ChatGPT/Codex passthrough
+- Cursor Composer passthrough
+- ClinePass
+- Auto Router virtual model
+
+Otteriki is intentionally not a bespoke provider. It should work as an
+OpenAI-compatible endpoint when configured.
+

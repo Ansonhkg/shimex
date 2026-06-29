@@ -1,0 +1,87 @@
+project:
+  name: shimex
+  package_manager: bun
+
+runtime:
+  host: 127.0.0.1
+  port: 8765
+  home: ~/.shimex
+
+codex:
+  source_app: auto
+  managed_app_name: Shimex
+  managed_app_path: ~/Applications/Shimex.app
+  profile_home: ~/.shimex/codex-profile
+  user_data_dir: ~/.shimex/codex-user-data
+
+providers:
+  - id: cline-pass
+    enabled: true
+    models:
+      refresh: on_start
+
+  - id: lm-studio
+    enabled: true
+    endpoint: http://127.0.0.1:1234/v1
+    models:
+      - slug: lm-studio-local
+        display_name: LM Studio Local
+        upstream_model: local-model
+        context_window: 128000
+        input_modalities: [text]
+
+  - id: openai-compatible
+    enabled: true
+    endpoint: ${OPENAI_COMPATIBLE_BASE_URL}
+    auth:
+      type: env
+      name: OPENAI_COMPATIBLE_API_KEY
+    models: []
+
+  - id: openai-responses
+    enabled: true
+    endpoint: ${OPENAI_RESPONSES_BASE_URL}
+    auth:
+      type: env
+      name: OPENAI_RESPONSES_API_KEY
+    models: []
+
+  - id: anthropic
+    enabled: true
+    endpoint: https://api.anthropic.com/v1
+    auth:
+      type: env
+      name: ANTHROPIC_API_KEY
+    models: []
+
+  - id: cloudflare-workers-ai
+    enabled: true
+    endpoint: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    auth:
+      type: env
+      name: CLOUDFLARE_AUTH_TOKEN
+    models: []
+
+  - id: ollama
+    enabled: true
+    endpoint: http://127.0.0.1:11434/v1
+    models: []
+
+  - id: chatgpt-codex
+    enabled: true
+    auth:
+      type: external-codex-login
+
+  - id: cursor-composer
+    enabled: true
+    auth:
+      type: external-cli-login
+      command: cursor-agent status
+
+  - id: auto-router
+    enabled: false
+    slug: shimex-auto
+    display_name: Auto Router
+    threshold: 0.7
+    candidates: []
+

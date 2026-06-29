@@ -1,0 +1,20 @@
+{
+  "name": "shimex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local provider gateway and managed Codex Desktop companion.",
+  "bin": {
+    "shimex": "./src/cli/main.js"
+  },
+  "scripts": {
+    "shimex": "bun src/cli/main.js",
+    "start": "bun src/cli/main.js server start",
+    "test": "bun test",
+    "check": "bun test && bun src/cli/main.js doctor"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
+
