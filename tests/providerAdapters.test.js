@@ -354,6 +354,70 @@ describe("Provider request adapters", () => {
     assert.equal(JSON.parse(calls[0].init.body).model, "vision-upstream");
     assert.equal(JSON.parse(result.body).model, "vision-model");
   });
+
+  test("auto-router can use a classifier model before routing", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      {
+        providers: [
+          {
+            id: "auto-router",
+            enabled: true,
+            endpoint: "",
+            auth: null,
+            models: [],
+            options: {
+              enabled: true,
+              slug: "shimex-auto",
+              classifier: "classifier-model",
+              threshold: 0.7,
+              candidates: [
+                { slug: "cheap-model", cost: 1, card: "Fast but weak." },
+                { slug: "expensive-model", cost: 5, card: "Best for complex code." },
+              ],
+            },
+          },
+          {
+            id: "lm-studio",
+            enabled: true,
+            endpoint: "http://127.0.0.1:1234/v1",
+            auth: null,
+            options: {},
+            models: [
+              modelConfig({ slug: "classifier-model", upstreamModel: "classifier-upstream" }),
+              modelConfig({ slug: "cheap-model", upstreamModel: "cheap-upstream" }),
+              modelConfig({ slug: "expensive-model", upstreamModel: "expensive-upstream" }),
+            ],
+          },
+        ],
+      },
+      "/v1/responses",
+      { model: "shimex-auto", input: "complex classifier test task", stream: false },
+      {
+        fetch: async (url, init) => {
+          const body = JSON.parse(init.body);
+          calls.push(body.model);
+          if (body.model === "classifier-upstream") {
+            assert.match(body.messages[0].content, /complex classifier test task/);
+            return jsonResponse({
+              id: "chatcmpl_classifier",
+              model: "classifier-upstream",
+              choices: [{ message: { role: "assistant", content: "{\"cheap-model\":0.2,\"expensive-model\":0.95}" } }],
+            });
+          }
+          return jsonResponse({
+            id: "chatcmpl_answer",
+            model: body.model,
+            choices: [{ message: { role: "assistant", content: "classified route" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.deepEqual(calls, ["classifier-upstream", "expensive-upstream"]);
+    assert.equal(JSON.parse(result.body).model, "expensive-model");
+  });
 });
 
 function testConfig(provider) {

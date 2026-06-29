@@ -69,3 +69,27 @@ models:
 Refresh is best-effort. If the upstream endpoint or auth is unavailable,
 Shimex keeps using configured models, cached models, or the provider's static
 fallback list.
+
+## Auto Router
+
+`auto-router` can choose among configured candidate slugs. Without a
+classifier, it routes to the cheapest viable candidate and skips text-only
+models for image requests. With `classifier` configured, Shimex asks that model
+to score candidates and chooses the cheapest candidate above `threshold`.
+
+```yaml
+- id: auto-router
+  enabled: true
+  slug: shimex-auto
+  classifier: classifier-model-slug
+  threshold: 0.7
+  default: balanced-model-slug
+  cache: true
+  candidates:
+    - slug: cheap-model-slug
+      cost: 1
+      card: Fast, low-cost edits.
+    - slug: strong-model-slug
+      cost: 5
+      card: Hard debugging and architecture work.
+```

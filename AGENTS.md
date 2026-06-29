@@ -92,6 +92,10 @@ parts silently.
 If a bridge cannot forward images to the upstream API or CLI, keep that model
 text-only even if the upstream product may support images elsewhere.
 
+Auto Router classifier failures must degrade to deterministic candidate
+selection. A broken classifier must not break the user's request when a viable
+candidate exists.
+
 ## Codex Client Rules
 
 - Detect the source Codex app before install or sync.

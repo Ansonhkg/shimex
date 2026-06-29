@@ -27,7 +27,11 @@ export async function handleProviderModelRequest(config, pathname, body, options
   }
   switch (route.provider.requestAdapter) {
     case "route-policy": {
-      const candidate = await resolveAutoRouterCandidate(config, route, body);
+      const candidate = await resolveAutoRouterCandidate(config, route, body, {
+        classify: route.providerConfig.options.classifier
+          ? (prompt) => classifyAutoRoute(config, route, prompt, options)
+          : null,
+      });
       if (!candidate) {
         return autoRouterNoCandidateResult(route);
       }
@@ -54,4 +58,44 @@ export async function handleProviderModelRequest(config, pathname, body, options
         },
       }, 501);
   }
+}
+
+async function classifyAutoRoute(config, route, prompt, options) {
+  const classifier = String(route.providerConfig.options.classifier || "").trim();
+  if (!classifier || classifier === route.model.slug) {
+    return "";
+  }
+  const result = await handleProviderModelRequest(config, "/v1/responses", {
+    model: classifier,
+    input: prompt,
+    stream: false,
+    temperature: 0,
+    max_output_tokens: Number(route.providerConfig.options.max_tokens || route.providerConfig.options.maxTokens || 600),
+  }, {
+    ...options,
+    depth: (options.depth || 0) + 1,
+  });
+  if (result.status >= 400) {
+    return "";
+  }
+  const payload = JSON.parse(result.body || "{}");
+  return responseText(payload);
+}
+
+function responseText(payload) {
+  if (typeof payload.output_text === "string") {
+    return payload.output_text;
+  }
+  const parts = [];
+  for (const item of payload.output || []) {
+    if (item?.type !== "message") {
+      continue;
+    }
+    for (const part of item.content || []) {
+      if (part?.text) {
+        parts.push(String(part.text));
+      }
+    }
+  }
+  return parts.join("\n");
 }
