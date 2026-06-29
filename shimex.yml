@@ -1,6 +1,6 @@
 project:
   name: shimex
-  package_manager: bun
+  package_manager: npm
 
 runtime:
   host: 127.0.0.1
@@ -84,4 +84,3 @@ providers:
     display_name: Auto Router
     threshold: 0.7
     candidates: []
-

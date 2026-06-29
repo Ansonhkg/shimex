@@ -13,7 +13,7 @@ export function normalizeConfig(raw) {
   return {
     project: {
       name: raw.project?.name || "shimex",
-      packageManager: raw.project?.package_manager || "bun",
+      packageManager: raw.project?.package_manager || "npm",
     },
     runtime: {
       host: raw.runtime?.host || "127.0.0.1",

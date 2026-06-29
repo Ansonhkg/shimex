@@ -8,13 +8,13 @@
     "shimex": "./src/cli/main.js"
   },
   "scripts": {
-    "shimex": "bun src/cli/main.js",
-    "start": "bun src/cli/main.js server start",
-    "test": "bun test",
-    "check": "bun test && bun src/cli/main.js doctor"
+    "shimex": "node src/cli/main.js",
+    "start": "node src/cli/main.js server start",
+    "test": "node --test",
+    "check": "npm test && npm run shimex -- doctor"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   }
 }
-

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
 import { codexCatalogEntry } from "../src/clients/codex/catalog.js";
 import { loadShimexConfig } from "../src/core/config.js";
 import { slugify } from "../src/core/model.js";
@@ -8,16 +9,16 @@ import { listProviderManifests } from "../src/providers/index.js";
 describe("Shimex scaffold", () => {
   test("registers supported provider families", () => {
     const ids = listProviderManifests().map((provider) => provider.id);
-    expect(ids).toContain("openai-compatible");
-    expect(ids).toContain("openai-responses");
-    expect(ids).toContain("anthropic");
-    expect(ids).toContain("cloudflare-workers-ai");
-    expect(ids).toContain("ollama");
-    expect(ids).toContain("lm-studio");
-    expect(ids).toContain("chatgpt-codex");
-    expect(ids).toContain("cursor-composer");
-    expect(ids).toContain("cline-pass");
-    expect(ids).toContain("auto-router");
+    assert.ok(ids.includes("openai-compatible"));
+    assert.ok(ids.includes("openai-responses"));
+    assert.ok(ids.includes("anthropic"));
+    assert.ok(ids.includes("cloudflare-workers-ai"));
+    assert.ok(ids.includes("ollama"));
+    assert.ok(ids.includes("lm-studio"));
+    assert.ok(ids.includes("chatgpt-codex"));
+    assert.ok(ids.includes("cursor-composer"));
+    assert.ok(ids.includes("cline-pass"));
+    assert.ok(ids.includes("auto-router"));
   });
 
   test("uses explicit image capabilities in the Codex catalog", () => {
@@ -29,8 +30,8 @@ describe("Shimex scaffold", () => {
       contextWindow: 128000,
       inputModalities: ["text", "image"],
     });
-    expect(entry.input_modalities).toEqual(["text", "image"]);
-    expect(entry.supports_image_detail_original).toBe(true);
+    assert.deepEqual(entry.input_modalities, ["text", "image"]);
+    assert.equal(entry.supports_image_detail_original, true);
   });
 
   test("keeps text-only models text-only", () => {
@@ -42,8 +43,8 @@ describe("Shimex scaffold", () => {
       contextWindow: 128000,
       inputModalities: ["text"],
     });
-    expect(entry.input_modalities).toEqual(["text"]);
-    expect(entry.supports_image_detail_original).toBe(false);
+    assert.deepEqual(entry.input_modalities, ["text"]);
+    assert.equal(entry.supports_image_detail_original, false);
   });
 
   test("discovers configured and static provider models", async () => {
@@ -64,18 +65,18 @@ describe("Shimex scaffold", () => {
       ],
     };
     const models = await discoverModels(config);
-    expect(models.map((model) => model.slug)).toContain("openrouter-glm");
-    expect(models.map((model) => model.slug)).toContain("composer-2-5");
+    assert.ok(models.map((model) => model.slug).includes("openrouter-glm"));
+    assert.ok(models.map((model) => model.slug).includes("composer-2-5"));
   });
 
   test("slugifies provider model IDs", () => {
-    expect(slugify("cline-pass/glm-5.2")).toBe("cline-pass-glm-5-2");
+    assert.equal(slugify("cline-pass/glm-5.2"), "cline-pass-glm-5-2");
   });
 
   test("loads shimex.yml provider lists", async () => {
     const config = await loadShimexConfig();
-    expect(config.runtime.port).toBe(8765);
-    expect(config.providers.map((provider) => provider.id)).toContain("cline-pass");
-    expect(config.providers.map((provider) => provider.id)).toContain("lm-studio");
+    assert.equal(config.runtime.port, 8765);
+    assert.ok(config.providers.map((provider) => provider.id).includes("cline-pass"));
+    assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
   });
 });

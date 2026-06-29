@@ -1,6 +1,6 @@
 # Shimex Agent Instructions
 
-Shimex is a JavaScript/Bun product that gives Codex Desktop a managed local
+Shimex is a JavaScript/Node product that gives Codex Desktop a managed local
 provider gateway.
 
 ## Product Contract
@@ -93,7 +93,7 @@ parts silently.
 
 ## Commands
 
-Use Bun and the repo command center:
+Use npm and the repo command center:
 
 ```bash
 make help
@@ -105,10 +105,10 @@ make run
 Useful CLI checks:
 
 ```bash
-bun run shimex help
-bun run shimex doctor
-bun run shimex providers list
-bun run shimex models list
+npm run shimex -- help
+npm run shimex -- doctor
+npm run shimex -- providers list
+npm run shimex -- models list
 ```
 
 ## Quality Bar
@@ -120,4 +120,3 @@ bun run shimex models list
 - Do not add fake LLM providers that pretend to test semantic behavior.
   Deterministic tests may cover schemas, config, catalog output, routing
   decisions, and adapter request construction.
-

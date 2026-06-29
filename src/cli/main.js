@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { createServer } from "../server/httpServer.js";
 import { loadShimexConfig } from "../core/config.js";
 import { discoverModels } from "../core/modelDiscovery.js";
@@ -49,7 +50,7 @@ commands:
 }
 
 async function runVersion() {
-  const pkg = await Bun.file(new URL("../../package.json", import.meta.url)).json();
+  const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
   console.log(pkg.version);
   return 0;
 }
@@ -108,7 +109,7 @@ async function runServer(args) {
   }
   const server = await createServer(config);
   console.log(`Shimex listening on http://${server.hostname}:${server.port}/admin`);
-  await new Promise(() => {});
+  await server.closed;
   return 0;
 }
 
@@ -120,5 +121,5 @@ function readFlag(args, name) {
   return args[index + 1] || "";
 }
 
-const exitCode = await main(Bun.argv.slice(2));
+const exitCode = await main(process.argv.slice(2));
 process.exit(exitCode);

@@ -1,6 +1,6 @@
 # Shimex
 
-Shimex is a local JavaScript/Bun provider gateway for Codex Desktop.
+Shimex is a local JavaScript/Node provider gateway for Codex Desktop.
 
 It expects the user to have Codex Desktop installed, copies that app into a
 managed Shimex app, and points the managed copy at a local OpenAI-compatible
@@ -17,11 +17,11 @@ server and generated model catalog. The original Codex app remains untouched.
 
 ```bash
 cd ~/Projects/shimex
-bun run shimex help
-bun run shimex doctor
-bun run shimex providers list
-bun run shimex models list
-bun run shimex server start
+npm run shimex -- help
+npm run shimex -- doctor
+npm run shimex -- providers list
+npm run shimex -- models list
+npm run shimex -- server start
 ```
 
 Open the admin UI at:
@@ -46,4 +46,3 @@ Shimex is being ported from `codex-shim` with these provider families:
 
 Otteriki is intentionally not a bespoke provider. It should work as an
 OpenAI-compatible endpoint when configured.
-
