@@ -1,3 +1,7 @@
+import { readProviderModelCache, shouldRefreshModels, writeProviderModelCache } from "../../core/modelCache.js";
+
+const CLINE_PASS_RECOMMENDED_MODELS_URL = "https://api.cline.bot/api/v1/ai/cline/recommended-models";
+
 export const CLINE_PASS_MODELS = [
   ["cline-pass/deepseek-v4-flash", "DeepSeek V4 Flash", 1000000, ["text"]],
   ["cline-pass/deepseek-v4-pro", "DeepSeek V4 Pro", 1000000, ["text"]],
@@ -19,15 +23,33 @@ export const clinePassProvider = {
   auth: { type: "external-app", app: "cline" },
   capabilitySource: "provider-recommended-models",
   requestAdapter: "cline-pass-openai-chat",
-  discoverModels() {
-    return CLINE_PASS_MODELS.map(([upstreamModel, displayName, contextWindow, inputModalities]) => ({
-      slug: upstreamModel.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().replace(/^-|-$/g, ""),
-      displayName,
-      upstreamModel,
-      contextWindow,
-      inputModalities,
-      priority: 9500,
-    }));
+  async discoverModels(config, rootConfig) {
+    const cached = rootConfig ? await readProviderModelCache(rootConfig, config) : [];
+    return (cached.length ? cached : fallbackModels()).map((model) => ({ ...model, priority: model.priority || 9500 }));
+  },
+  async refreshModels(config, rootConfig, options = {}) {
+    if (!shouldRefreshModels(config)) {
+      return { providerId: "cline-pass", refreshed: false, reason: "refresh-disabled" };
+    }
+    const fetchImpl = options.fetch || fetch;
+    try {
+      const response = await fetchImpl(CLINE_PASS_RECOMMENDED_MODELS_URL, {
+        headers: { accept: "application/json", "user-agent": "shimex" },
+        signal: AbortSignal.timeout(Number(process.env.SHIMEX_MODEL_REFRESH_TIMEOUT_MS || 2500)),
+      });
+      if (!response.ok) {
+        return { providerId: "cline-pass", refreshed: false, reason: `http-${response.status}` };
+      }
+      const payload = await response.json();
+      const models = normalizeClinePassRecommended(payload.clinePass);
+      if (!models.length) {
+        return { providerId: "cline-pass", refreshed: false, reason: "empty-response" };
+      }
+      const path = await writeProviderModelCache(rootConfig, config, models);
+      return { providerId: "cline-pass", refreshed: true, count: models.length, path };
+    } catch (error) {
+      return { providerId: "cline-pass", refreshed: false, reason: String(error?.name || error?.message || error) };
+    }
   },
 };
 
@@ -45,4 +67,59 @@ export function clinePassInputModalities(slug) {
 
 function slugFor(value) {
   return value.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().replace(/^-|-$/g, "");
+}
+
+function fallbackModels() {
+  return CLINE_PASS_MODELS.map(([upstreamModel, displayName, contextWindow, inputModalities]) => ({
+    slug: slugFor(upstreamModel),
+    displayName,
+    upstreamModel,
+    contextWindow,
+    inputModalities,
+    priority: 9500,
+  }));
+}
+
+function normalizeClinePassRecommended(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const fallbackById = new Map(fallbackModels().map((model) => [model.upstreamModel, model]));
+  return value.map((entry) => {
+    const upstreamModel = String(entry?.id || "").trim();
+    if (!upstreamModel) {
+      return null;
+    }
+    const fallback = fallbackById.get(upstreamModel);
+    const inputModalities = normalizeModalities(entry, fallback);
+    return {
+      slug: slugFor(upstreamModel),
+      displayName: displayNameFor(entry, upstreamModel, fallback),
+      upstreamModel,
+      contextWindow: Number(entry.contextWindow || entry.context_window || fallback?.contextWindow || 128000),
+      inputModalities,
+      priority: 9500,
+    };
+  }).filter(Boolean);
+}
+
+function displayNameFor(entry, upstreamModel, fallback) {
+  const name = String(entry.name || "").trim();
+  if (name && name !== upstreamModel) {
+    return name;
+  }
+  return fallback?.displayName || upstreamModel.replace(/^cline-pass\//, "");
+}
+
+function normalizeModalities(entry, fallback) {
+  if (Array.isArray(entry.inputModalities) && entry.inputModalities.length) {
+    return entry.inputModalities.map(String);
+  }
+  if (Array.isArray(entry.input_modalities) && entry.input_modalities.length) {
+    return entry.input_modalities.map(String);
+  }
+  if (fallback?.inputModalities?.length) {
+    return fallback.inputModalities;
+  }
+  return entry.supportsImages ? ["text", "image"] : ["text"];
 }

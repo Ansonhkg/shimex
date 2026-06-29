@@ -12,6 +12,8 @@ provider gateway.
 - Secrets must be referenced, not copied into source or config.
 - Unknown provider capabilities stay unknown. Do not guess image, tool,
   context, or reasoning support.
+- Dynamic model discovery must be cache-backed and best-effort. Normal catalog
+  reads should not require a live network call.
 - No legacy, fallback, or compatibility code paths unless a current migration
   reason is written beside the code with a removal condition.
 
@@ -53,8 +55,10 @@ To add a provider:
 4. Add or reuse a request adapter in `src/providers/<provider-id>/adapter.js`
    or a shared protocol adapter.
 5. Register the adapter in `src/providers/adapter.js`.
-6. Add a `shimex.yml` example entry.
-7. Add tests showing models appear in `/v1/models`, the Codex catalog, and
+6. If the provider can discover models dynamically, implement `refreshModels`
+   and cache reads rather than fetching in every `discoverModels` call.
+7. Add a `shimex.yml` example entry.
+8. Add tests showing models appear in `/v1/models`, the Codex catalog, and
    at least one deterministic request route.
 
 OpenAI-compatible endpoint providers should use the shared

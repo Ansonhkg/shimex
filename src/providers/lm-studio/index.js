@@ -1,3 +1,5 @@
+import { discoverOpenAiCompatibleModels, refreshOpenAiCompatibleModels } from "../openai-compatible/discovery.js";
+
 export const lmStudioProvider = {
   id: "lm-studio",
   displayName: "LM Studio",
@@ -6,8 +8,10 @@ export const lmStudioProvider = {
   auth: { type: "none" },
   capabilitySource: "configured-or-openai-models",
   requestAdapter: "openai-compatible-chat",
-  discoverModels(config) {
-    return config.models;
+  discoverModels(config, rootConfig) {
+    return discoverOpenAiCompatibleModels(config, rootConfig);
+  },
+  refreshModels(config, rootConfig, options) {
+    return refreshOpenAiCompatibleModels(config, rootConfig, lmStudioProvider, options);
   },
 };
-

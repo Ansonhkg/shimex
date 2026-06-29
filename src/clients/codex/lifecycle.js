@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
-import { discoverModels } from "../../core/modelDiscovery.js";
+import { discoverModels, refreshProviderModelCaches } from "../../core/modelDiscovery.js";
 import { ensureServerRunning } from "../../server/process.js";
 import { generateCodexCatalog } from "./catalog.js";
 import { codexDoctor } from "./doctor.js";
@@ -39,6 +39,9 @@ export async function installCodexClient(config, options = {}) {
     return { applied: false, plan };
   }
   assertInstallPlanSafe(plan);
+  if (!options.models) {
+    await refreshProviderModelCaches(config);
+  }
   const models = options.models || await discoverModels(config);
   await copyManagedApp(plan.sourceCodexApp.path, plan.managedShimexApp.path);
   const patch = await patchManagedCodexApp(config);
@@ -56,6 +59,9 @@ export async function syncCodexClient(config, options = {}) {
 }
 
 export async function writeCodexProfile(config, models = null) {
+  if (!models) {
+    await refreshProviderModelCaches(config);
+  }
   const resolvedModels = models || await discoverModels(config);
   if (!resolvedModels.length) {
     throw new Error("Cannot write Codex profile without at least one Shimex model.");

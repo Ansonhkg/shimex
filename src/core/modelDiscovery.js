@@ -12,13 +12,28 @@ export async function discoverModels(config) {
       continue;
     }
     const discovered = provider.discoverModels
-      ? await provider.discoverModels(providerConfig)
+      ? await provider.discoverModels(providerConfig, config)
       : providerConfig.models;
     discovered.forEach((model, index) => {
       models.push(normalizeModel(provider.id, model, models.length + index));
     });
   }
   return dedupeSlugs(models);
+}
+
+export async function refreshProviderModelCaches(config) {
+  const results = [];
+  for (const providerConfig of config.providers) {
+    if (!providerConfig.enabled) {
+      continue;
+    }
+    const provider = getProviderManifest(providerConfig.id);
+    if (!provider?.refreshModels) {
+      continue;
+    }
+    results.push(await provider.refreshModels(providerConfig, config));
+  }
+  return results;
 }
 
 function dedupeSlugs(models) {
@@ -32,4 +47,3 @@ function dedupeSlugs(models) {
     return { ...model, slug: `${model.slug}-${count + 1}` };
   });
 }
-

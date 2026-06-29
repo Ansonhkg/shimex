@@ -1,6 +1,6 @@
 import { createServer as createHttpServer } from "node:http";
 import { adminPage } from "../admin/page.js";
-import { discoverModels } from "../core/modelDiscovery.js";
+import { discoverModels, refreshProviderModelCaches } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { installCodexClient, openCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
@@ -8,6 +8,7 @@ import { handleProviderModelRequest } from "../providers/adapter.js";
 import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
 
 export async function createServer(config) {
+  await refreshProviderModelCaches(config);
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);

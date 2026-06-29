@@ -13,6 +13,8 @@ server and generated model catalog. The original Codex app remains untouched.
 - Request adapters for OpenAI-compatible chat, OpenAI Responses-compatible,
   Anthropic Messages, ClinePass, ChatGPT/Codex passthrough, Cursor Composer,
   and Auto Router fallback routing.
+- Cache-backed provider model refresh for ClinePass recommended models and
+  OpenAI-compatible `/models` endpoints when `models.refresh: on_start` is set.
 - Codex Desktop as the only client target.
 - Bare local admin UI exposed by the Shimex server.
 
@@ -52,3 +54,18 @@ OpenAI-compatible endpoint when configured.
 
 Cursor Composer is exposed as text-only in Shimex because the current bridge
 uses `cursor-agent` prompt input rather than a native image transport.
+
+## Model Discovery
+
+Configured `models` entries are always used as written. Providers can also
+refresh model caches during `server start`, `install --apply`, and
+`sync --apply` when configured with:
+
+```yaml
+models:
+  refresh: on_start
+```
+
+Refresh is best-effort. If the upstream endpoint or auth is unavailable,
+Shimex keeps using configured models, cached models, or the provider's static
+fallback list.
