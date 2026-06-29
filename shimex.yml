@@ -4,7 +4,7 @@ project:
 
 runtime:
   host: 127.0.0.1
-  port: 8765
+  port: 18765
   home: ~/.shimex
 
 codex:

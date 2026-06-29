@@ -31,3 +31,18 @@ export const clinePassProvider = {
   },
 };
 
+export function isClinePassModelSlug(slug) {
+  return CLINE_PASS_MODELS.some(([upstreamModel]) => slugFor(upstreamModel) === slug);
+}
+
+export function clinePassUpstreamModel(slug) {
+  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === slug)?.[0] || slug;
+}
+
+export function clinePassInputModalities(slug) {
+  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === slug)?.[3] || ["text"];
+}
+
+function slugFor(value) {
+  return value.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().replace(/^-|-$/g, "");
+}

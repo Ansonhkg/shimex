@@ -2,12 +2,15 @@ import { createServer as createHttpServer } from "node:http";
 import { adminPage } from "../admin/page.js";
 import { discoverModels } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
+import { codexDoctor } from "../clients/codex/doctor.js";
+import { installCodexClient, openCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
+import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
 
 export async function createServer(config) {
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);
-      const result = await routeRequest(config, request.method || "GET", url.pathname);
+      const result = await routeRequest(config, request, url);
       writeResponse(response, result);
     } catch (error) {
       writeResponse(response, json({ error: String(error?.message || error) }, { status: 500 }));
@@ -24,9 +27,17 @@ export async function createServer(config) {
   };
 }
 
-async function routeRequest(config, method, pathname) {
+async function routeRequest(config, request, url) {
+  const method = request.method || "GET";
+  const pathname = url.pathname;
   if (method === "GET" && pathname === "/health") {
     return json({ ok: true, service: "shimex" });
+  }
+  if (method === "GET" && pathname === "/api/status") {
+    return json({
+      doctor: await codexDoctor(config),
+      models: await discoverModels(config),
+    });
   }
   if (method === "GET" && pathname === "/admin") {
     return html(adminPage());
@@ -47,7 +58,21 @@ async function routeRequest(config, method, pathname) {
   if (method === "GET" && pathname === "/codex/model-catalog.json") {
     return json(generateCodexCatalog(await discoverModels(config)));
   }
+  if (method === "POST" && pathname === "/api/install") {
+    return json(await installCodexClient(config, { apply: url.searchParams.get("apply") === "1" }));
+  }
+  if (method === "POST" && pathname === "/api/sync") {
+    return json(await syncCodexClient(config, { apply: url.searchParams.get("apply") === "1" }));
+  }
+  if (method === "POST" && pathname === "/api/open") {
+    return json(await openCodexClient(config));
+  }
   if (method === "POST" && routeIsModelRequest(pathname)) {
+    const body = await readJsonBody(request);
+    const clinePass = await handleClinePassModelRequest(body);
+    if (clinePass) {
+      return clinePass;
+    }
     return json({
       error: {
         message: "Provider request adapters are scaffolded but not ported yet.",
@@ -82,8 +107,27 @@ function html(value) {
 }
 
 function writeResponse(response, result) {
+  if (result.stream) {
+    response.writeHead(result.status, result.headers);
+    result.stream(response)
+      .then(() => response.end())
+      .catch((error) => {
+        response.write(`data: ${JSON.stringify({ error: String(error?.message || error) })}\n\n`);
+        response.end();
+      });
+    return;
+  }
   response.writeHead(result.status, result.headers);
   response.end(result.body);
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+  const text = Buffer.concat(chunks).toString("utf8");
+  return text ? JSON.parse(text) : {};
 }
 
 function listen(server, port, host) {

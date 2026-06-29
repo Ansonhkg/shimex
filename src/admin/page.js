@@ -10,6 +10,7 @@ export function adminPage() {
     body { margin: 32px; max-width: 960px; }
     h1 { font-size: 24px; margin: 0 0 8px; }
     h2 { font-size: 16px; margin-top: 28px; }
+    button { margin: 0 8px 8px 0; padding: 6px 10px; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border-bottom: 1px solid CanvasText; padding: 8px; text-align: left; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -21,6 +22,15 @@ export function adminPage() {
   <p class="muted">Local provider gateway for managed Codex Desktop.</p>
   <h2>Health</h2>
   <pre id="health">loading...</pre>
+  <h2>Codex App</h2>
+  <div>
+    <button data-action="/api/install">Plan install</button>
+    <button data-action="/api/install?apply=1">Install</button>
+    <button data-action="/api/sync">Plan sync</button>
+    <button data-action="/api/sync?apply=1">Sync</button>
+    <button data-action="/api/open">Open</button>
+  </div>
+  <pre id="action"></pre>
   <h2>Models</h2>
   <table>
     <thead><tr><th>Model</th><th>Provider</th><th>Input</th><th>Context</th></tr></thead>
@@ -29,7 +39,8 @@ export function adminPage() {
   <script>
     async function load() {
       const health = await fetch('/health').then((r) => r.json());
-      document.getElementById('health').textContent = JSON.stringify(health, null, 2);
+      const status = await fetch('/api/status').then((r) => r.json());
+      document.getElementById('health').textContent = JSON.stringify({ health, doctor: status.doctor }, null, 2);
       const models = await fetch('/api/models').then((r) => r.json());
       document.getElementById('models').innerHTML = models.map((model) => (
         '<tr><td><code>' + model.slug + '</code><br>' + model.displayName + '</td>' +
@@ -38,6 +49,14 @@ export function adminPage() {
         '<td>' + model.contextWindow + '</td></tr>'
       )).join('');
     }
+    for (const button of document.querySelectorAll('button[data-action]')) {
+      button.addEventListener('click', async () => {
+        const action = button.getAttribute('data-action');
+        const result = await fetch(action, { method: 'POST' }).then((r) => r.json());
+        document.getElementById('action').textContent = JSON.stringify(result, null, 2);
+        await load();
+      });
+    }
     load().catch((error) => {
       document.getElementById('health').textContent = String(error);
     });
@@ -45,4 +64,3 @@ export function adminPage() {
 </body>
 </html>`;
 }
-

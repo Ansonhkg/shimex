@@ -6,11 +6,15 @@ import { discoverModels } from "../core/modelDiscovery.js";
 import { listProviderManifests } from "../providers/index.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
+import { installCodexClient, openCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 
 const commands = {
   help: runHelp,
   version: runVersion,
   doctor: runDoctor,
+  install: runInstall,
+  sync: runSync,
+  open: runOpen,
   providers: runProviders,
   models: runModels,
   catalog: runCatalog,
@@ -34,6 +38,9 @@ function runHelp() {
 
 start here:
   shimex doctor
+  shimex install
+  shimex install --apply
+  shimex open
   shimex providers list
   shimex models list
   shimex server start [--port <port>]
@@ -42,6 +49,9 @@ commands:
   help                 Show help
   version              Show version
   doctor               Check Codex Desktop prerequisite and Shimex config
+  install              Plan managed Shimex.app install; use --apply to write
+  sync                 Plan managed Shimex.app resync; use --apply to write
+  open                 Open the managed Shimex.app
   providers list       List registered providers
   models list          List discovered models
   catalog print        Print the generated Codex model catalog
@@ -60,6 +70,27 @@ async function runDoctor() {
   const report = await codexDoctor(config);
   console.log(JSON.stringify(report, null, 2));
   return report.ok ? 0 : 1;
+}
+
+async function runInstall(args) {
+  const config = await loadShimexConfig();
+  const result = await installCodexClient(config, { apply: hasFlag(args, "--apply") });
+  console.log(JSON.stringify(result, null, 2));
+  return result.applied || !hasFlag(args, "--apply") ? 0 : 1;
+}
+
+async function runSync(args) {
+  const config = await loadShimexConfig();
+  const result = await syncCodexClient(config, { apply: hasFlag(args, "--apply") });
+  console.log(JSON.stringify(result, null, 2));
+  return result.applied || !hasFlag(args, "--apply") ? 0 : 1;
+}
+
+async function runOpen(args) {
+  const config = await loadShimexConfig();
+  const result = await openCodexClient(config, args);
+  console.log(JSON.stringify(result, null, 2));
+  return 0;
 }
 
 async function runProviders(args) {
@@ -119,6 +150,10 @@ function readFlag(args, name) {
     return "";
   }
   return args[index + 1] || "";
+}
+
+function hasFlag(args, name) {
+  return args.includes(name);
 }
 
 const exitCode = await main(process.argv.slice(2));

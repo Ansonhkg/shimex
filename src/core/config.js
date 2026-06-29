@@ -17,7 +17,7 @@ export function normalizeConfig(raw) {
     },
     runtime: {
       host: raw.runtime?.host || "127.0.0.1",
-      port: Number(process.env.SHIMEX_PORT || raw.runtime?.port || 8765),
+      port: Number(process.env.SHIMEX_PORT || raw.runtime?.port || 18765),
       home: expandHome(raw.runtime?.home || "~/.shimex"),
     },
     codex: {

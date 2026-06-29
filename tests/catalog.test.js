@@ -75,7 +75,7 @@ describe("Shimex scaffold", () => {
 
   test("loads shimex.yml provider lists", async () => {
     const config = await loadShimexConfig();
-    assert.equal(config.runtime.port, 8765);
+    assert.equal(config.runtime.port, 18765);
     assert.ok(config.providers.map((provider) => provider.id).includes("cline-pass"));
     assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
   });
