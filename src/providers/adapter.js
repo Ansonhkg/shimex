@@ -53,8 +53,8 @@ export async function handleProviderModelRequest(config, pathname, body, options
     default:
       return jsonResult({
         error: {
-          message: `${route.provider.id} request adapter is not implemented yet.`,
-          type: "shimex_adapter_not_implemented",
+          message: `${route.provider.id} has no registered request adapter.`,
+          type: "shimex_adapter_missing",
         },
       }, 501);
   }
