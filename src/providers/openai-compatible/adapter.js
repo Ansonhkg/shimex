@@ -4,6 +4,7 @@ import {
   chatChunkToResponsesEvents,
   chatCompletionToResponse,
   createResponsesStreamState,
+  createToolNamespaceMap,
   finishChatResponsesStream,
   responsePayloadToEvents,
   responsesToChat,
@@ -28,6 +29,7 @@ export async function handleOpenAiCompatibleRequest(route, pathname, body, optio
     return await postChat(route, providerChatBody(route, chatBody), {
       asResponses: true,
       requestedModel: route.model.slug,
+      toolNamespaceMap: createToolNamespaceMap(body.tools),
       fetch: options.fetch || fetch,
     });
   }
@@ -52,7 +54,7 @@ async function postChat(route, body, options) {
     if (contentType.toLowerCase().includes("text/event-stream")) {
       return streamResult(async (response) => {
         if (options.asResponses) {
-          await streamChatAsResponses(response, upstream, options.requestedModel);
+          await streamChatAsResponses(response, upstream, options.requestedModel, options.toolNamespaceMap);
         } else {
           await streamChatPassThrough(response, upstream, options.requestedModel);
         }
@@ -61,7 +63,7 @@ async function postChat(route, body, options) {
     const payload = unwrapOpenAICompatiblePayload(await upstream.json());
     return streamResult(async (response) => {
       if (options.asResponses) {
-        for (const event of responsePayloadToEvents(chatCompletionToResponse(payload, options.requestedModel), options.requestedModel)) {
+        for (const event of responsePayloadToEvents(chatCompletionToResponse(payload, options.requestedModel, options.toolNamespaceMap), options.requestedModel)) {
           response.write(`data: ${JSON.stringify(event)}\n\n`);
         }
       } else {
@@ -72,16 +74,16 @@ async function postChat(route, body, options) {
   }
   const payload = unwrapOpenAICompatiblePayload(await upstream.json());
   if (options.asResponses) {
-    return jsonResult(chatCompletionToResponse(payload, options.requestedModel));
+    return jsonResult(chatCompletionToResponse(payload, options.requestedModel, options.toolNamespaceMap));
   }
   return jsonResult(rewriteChatModel(payload, options.requestedModel));
 }
 
-async function streamChatAsResponses(response, upstream, requestedModel) {
-  const state = createResponsesStreamState();
+async function streamChatAsResponses(response, upstream, requestedModel, toolNamespaceMap) {
+  const state = createResponsesStreamState({ toolNamespaceMap });
   for await (const payload of readSseJson(upstream)) {
     const chunk = unwrapOpenAICompatiblePayload(payload);
-    for (const event of chatChunkToResponsesEvents(state, chunk, requestedModel)) {
+    for (const event of chatChunkToResponsesEvents(state, chunk, requestedModel, toolNamespaceMap)) {
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     }
   }

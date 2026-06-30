@@ -43,7 +43,7 @@ export function chatToResponsesRequest(body, upstreamModel) {
   return request;
 }
 
-export function chatCompletionToResponse(payload, requestedModel) {
+export function chatCompletionToResponse(payload, requestedModel, toolNamespaceMap = null) {
   const choice = payload.choices?.[0] || {};
   const message = choice.message || {};
   const output = [];
@@ -68,6 +68,7 @@ export function chatCompletionToResponse(payload, requestedModel) {
       call_id: call.id || "call_0",
       name: fn.name || "",
       arguments: fn.arguments || "",
+      ...namespaceFields(toolNamespaceMap, fn.name || ""),
     });
   }
   return {
@@ -122,7 +123,10 @@ export function responseToChatCompletion(payload, requestedModel) {
   };
 }
 
-export function chatChunkToResponsesEvents(state, chunk, requestedModel) {
+export function chatChunkToResponsesEvents(state, chunk, requestedModel, toolNamespaceMap = null) {
+  if (toolNamespaceMap && !state.toolNamespaceMap) {
+    state.toolNamespaceMap = normalizeToolNamespaceMap(toolNamespaceMap);
+  }
   const events = [];
   if (!state.created) {
     state.created = true;
@@ -294,7 +298,7 @@ export function finishChatResponsesStream(state, requestedModel) {
   return events;
 }
 
-export function createResponsesStreamState() {
+export function createResponsesStreamState(options = {}) {
   const now = Date.now();
   return {
     responseId: `resp_${now}`,
@@ -307,6 +311,7 @@ export function createResponsesStreamState() {
     text: "",
     toolCalls: new Map(),
     usage: null,
+    toolNamespaceMap: normalizeToolNamespaceMap(options.toolNamespaceMap),
   };
 }
 
@@ -382,6 +387,7 @@ function streamToolCallDelta(state, call) {
       arguments: "",
       outputIndex: state.nextOutputIndex,
       closed: false,
+      namespaceMap: state.toolNamespaceMap,
     };
     state.nextOutputIndex += 1;
     state.toolCalls.set(index, toolCall);
@@ -395,6 +401,7 @@ function streamToolCallDelta(state, call) {
         call_id: toolCall.callId,
         name: toolCall.name,
         arguments: "",
+        ...namespaceFields(state.toolNamespaceMap, toolCall.name),
       },
     });
   } else if (fn.name) {
@@ -454,6 +461,7 @@ function streamToolCallOutput(toolCall) {
     call_id: toolCall.callId,
     name: toolCall.name,
     arguments: toolCall.arguments,
+    ...namespaceFields(toolCall.namespaceMap, toolCall.name),
   };
 }
 
@@ -560,6 +568,41 @@ function dataUrl(part) {
     return "";
   }
   return `data:${part.mime_type || "image/png"};base64,${part.image_base64}`;
+}
+
+export function createToolNamespaceMap(tools) {
+  const map = new Map();
+  if (!Array.isArray(tools)) {
+    return map;
+  }
+  for (const tool of tools) {
+    if (tool?.type !== "namespace" || !tool.name || !Array.isArray(tool.tools)) {
+      continue;
+    }
+    for (const nestedTool of tool.tools) {
+      const name = nestedTool?.name || nestedTool?.function?.name;
+      if (name && !map.has(name)) {
+        map.set(name, tool.name);
+      }
+    }
+  }
+  return map;
+}
+
+function normalizeToolNamespaceMap(value) {
+  if (value instanceof Map) {
+    return value;
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return new Map(Object.entries(value));
+  }
+  return null;
+}
+
+function namespaceFields(toolNamespaceMap, name) {
+  const normalized = normalizeToolNamespaceMap(toolNamespaceMap);
+  const namespace = normalized?.get(name);
+  return namespace ? { namespace } : {};
 }
 
 function responsesToolsToChatTools(tools) {

@@ -2,6 +2,7 @@ import {
   chatChunkToResponsesEvents,
   chatCompletionToResponse,
   createResponsesStreamState,
+  createToolNamespaceMap,
   finishChatResponsesStream,
   responsesToChat,
   unwrapOpenAICompatiblePayload,
@@ -28,13 +29,14 @@ export async function handleClinePassModelRequest(body, options = {}) {
   const chatBody = body.messages
     ? { ...body, model: upstreamModel }
     : responsesToChat(body, upstreamModel);
+  const toolNamespaceMap = body.messages ? null : createToolNamespaceMap(body.tools);
   const token = await clinePassAccessToken(options);
   if (!token) {
     return jsonResult({ error: { message: "ClinePass auth unavailable.", type: "shimex_auth_unavailable" } }, 401);
   }
   if (chatBody.stream) {
     return streamResult(async (response) => {
-      await streamClinePassChat(response, chatBody, requestedModel, token, options.fetch || fetch);
+      await streamClinePassChat(response, chatBody, requestedModel, token, options.fetch || fetch, toolNamespaceMap);
     });
   }
   const upstream = await postClinePassChat(chatBody, token, options.fetch || fetch);
@@ -45,10 +47,10 @@ export async function handleClinePassModelRequest(body, options = {}) {
   if (body.messages) {
     return jsonResult(payload);
   }
-  return jsonResult(chatCompletionToResponse(payload, requestedModel));
+  return jsonResult(chatCompletionToResponse(payload, requestedModel, toolNamespaceMap));
 }
 
-async function streamClinePassChat(response, body, requestedModel, token, fetchImpl) {
+async function streamClinePassChat(response, body, requestedModel, token, fetchImpl, toolNamespaceMap) {
   const upstream = await postClinePassChat(body, token, fetchImpl);
   if (!upstream.ok) {
     response.write(`data: ${JSON.stringify(await upstreamError(upstream))}\n\n`);
@@ -58,16 +60,16 @@ async function streamClinePassChat(response, body, requestedModel, token, fetchI
   const contentType = upstream.headers.get("content-type") || "";
   if (!contentType.toLowerCase().includes("text/event-stream")) {
     const payload = unwrapOpenAICompatiblePayload(await upstream.json());
-    const responsePayload = chatCompletionToResponse(payload, requestedModel);
+    const responsePayload = chatCompletionToResponse(payload, requestedModel, toolNamespaceMap);
     response.write(`data: ${JSON.stringify({ type: "response.created", response: { ...responsePayload, status: "in_progress", output: [] } })}\n\n`);
     response.write(`data: ${JSON.stringify({ type: "response.completed", response: responsePayload })}\n\n`);
     response.write("data: [DONE]\n\n");
     return;
   }
-  const state = createResponsesStreamState();
+  const state = createResponsesStreamState({ toolNamespaceMap });
   for await (const payload of readSseJson(upstream)) {
     const chunk = unwrapOpenAICompatiblePayload(payload);
-    for (const event of chatChunkToResponsesEvents(state, chunk, requestedModel)) {
+    for (const event of chatChunkToResponsesEvents(state, chunk, requestedModel, toolNamespaceMap)) {
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     }
   }

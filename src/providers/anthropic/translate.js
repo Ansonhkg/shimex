@@ -96,8 +96,8 @@ export function anthropicToChatCompletion(payload, requestedModel) {
   };
 }
 
-export function anthropicToResponse(payload, requestedModel) {
-  const response = chatCompletionToResponse(anthropicToChatCompletion(payload, requestedModel), requestedModel);
+export function anthropicToResponse(payload, requestedModel, toolNamespaceMap = null) {
+  const response = chatCompletionToResponse(anthropicToChatCompletion(payload, requestedModel), requestedModel, toolNamespaceMap);
   response.usage = normalizeResponsesUsage(payload.usage);
   return response;
 }

@@ -1,6 +1,6 @@
 import { anthropicHeaders, authMissingResult, joinEndpoint, upstreamError } from "../http.js";
 import { jsonResult, streamResult, validateModelInput } from "../routes.js";
-import { responsePayloadToEvents } from "../openai-compatible/translate.js";
+import { createToolNamespaceMap, responsePayloadToEvents } from "../openai-compatible/translate.js";
 import {
   anthropicToChatCompletion,
   anthropicToResponse,
@@ -24,6 +24,7 @@ export async function handleAnthropicRequest(route, pathname, body, options = {}
     return await postAnthropic(route, responsesToAnthropic(body, route.model.upstreamModel, route.model.maxOutputTokens), {
       requestedModel: route.model.slug,
       asResponses: true,
+      toolNamespaceMap: createToolNamespaceMap(body.tools),
       fetch: options.fetch || fetch,
     });
   }
@@ -49,7 +50,7 @@ async function postAnthropic(route, body, options) {
   if (wantsStream) {
     return streamResult(async (response) => {
       if (options.asResponses) {
-        const responsePayload = anthropicToResponse(payload, options.requestedModel);
+        const responsePayload = anthropicToResponse(payload, options.requestedModel, options.toolNamespaceMap);
         for (const event of responsePayloadToEvents(responsePayload, options.requestedModel)) {
           response.write(`data: ${JSON.stringify(event)}\n\n`);
         }
@@ -60,7 +61,7 @@ async function postAnthropic(route, body, options) {
     });
   }
   if (options.asResponses) {
-    return jsonResult(anthropicToResponse(payload, options.requestedModel));
+    return jsonResult(anthropicToResponse(payload, options.requestedModel, options.toolNamespaceMap));
   }
   return jsonResult(anthropicToChatCompletion(payload, options.requestedModel));
 }

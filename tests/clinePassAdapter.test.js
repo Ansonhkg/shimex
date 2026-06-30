@@ -44,6 +44,56 @@ describe("ClinePass adapter", () => {
     assert.deepEqual(JSON.parse(calls[1].init.body).model, "cline-pass/glm-5.2");
   });
 
+  test("restores namespace fields on ClinePass Responses function calls", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-glm-5-2",
+        input: "say hi to designer",
+        stream: false,
+        tools: [codexAppNamespaceTool()],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_1",
+              created: 123,
+              choices: [{
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [{
+                    id: "call_1",
+                    type: "function",
+                    function: {
+                      name: "send_message_to_thread",
+                      arguments: "{\"threadId\":\"thread_1\",\"prompt\":\"hi\"}",
+                    },
+                  }],
+                },
+              }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[1].init.body);
+    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.name), ["send_message_to_thread"]);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.output[0].type, "function_call");
+    assert.equal(payload.output[0].name, "send_message_to_thread");
+    assert.equal(payload.output[0].namespace, "codex_app");
+  });
+
   test("streams chat chunks as Responses events", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const result = await handleClinePassModelRequest(
@@ -78,7 +128,7 @@ describe("ClinePass adapter", () => {
   test("streams chat tool calls as Responses function call events", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const result = await handleClinePassModelRequest(
-      { model: "cline-pass-glm-5-2", input: "hello", stream: true },
+      { model: "cline-pass-glm-5-2", input: "hello", stream: true, tools: [codexAppNamespaceTool()] },
       {
         providerSettingsPath,
         fetch: async (url) => {
@@ -87,8 +137,8 @@ describe("ClinePass adapter", () => {
           }
           return new Response(
             [
-              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"shell","arguments":"{\\"cmd\\""}}]}}]}\n\n',
-              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"ls\\"}"}}]}}]}\n\n',
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"send_message_to_thread","arguments":"{\\"threadId\\""}}]}}]}\n\n',
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"thread_1\\",\\"prompt\\":\\"hi\\"}"}}]}}]}\n\n',
               'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
               "data: [DONE]\n\n",
             ].join(""),
@@ -106,12 +156,14 @@ describe("ClinePass adapter", () => {
     assert.match(text, /response.function_call_arguments.delta/);
     assert.match(text, /response.function_call_arguments.done/);
     assert.match(text, /response.output_item.done/);
-    assert.match(text, /"name":"shell"/);
-    assert.match(text, /"arguments":"{\\"cmd\\":\\"ls\\"}"/);
+    assert.match(text, /"name":"send_message_to_thread"/);
+    assert.match(text, /"namespace":"codex_app"/);
+    assert.match(text, /"arguments":"{\\"threadId\\":\\"thread_1\\",\\"prompt\\":\\"hi\\"}"/);
     assert.match(text, /response.completed/);
     const completed = sseEvents(text).find((event) => event.type === "response.completed");
     assert.equal(completed.response.output.length, 1);
     assert.equal(completed.response.output[0].type, "function_call");
+    assert.equal(completed.response.output[0].namespace, "codex_app");
   });
 
   test("rejects image input for text-only ClinePass models", async () => {
@@ -148,6 +200,26 @@ async function clineSettingsFile() {
     },
   }));
   return path;
+}
+
+function codexAppNamespaceTool() {
+  return {
+    type: "namespace",
+    name: "codex_app",
+    tools: [{
+      type: "function",
+      name: "send_message_to_thread",
+      description: "Send a follow-up prompt to an existing Codex thread.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          threadId: { type: "string" },
+          prompt: { type: "string" },
+        },
+        required: ["threadId", "prompt"],
+      },
+    }],
+  };
 }
 
 function jsonResponse(payload, status = 200) {
