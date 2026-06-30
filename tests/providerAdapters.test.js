@@ -469,6 +469,54 @@ describe("Provider request adapters", () => {
     assert.equal(JSON.parse(result.body).model, "gpt-5-5");
   });
 
+  test("completes ChatGPT Codex streams when upstream omits response.completed", async () => {
+    const authPath = await codexAuthFile();
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "chatgpt-codex",
+        models: [],
+      }),
+      "/v1/responses",
+      { model: "gpt-5-5", input: "hello", stream: true },
+      {
+        authPath,
+        fetch: async () => new Response([
+          `event: response.created\r\ndata: ${JSON.stringify({
+            type: "response.created",
+            response: {
+              id: "resp_1",
+              object: "response",
+              created_at: 123,
+              model: "gpt-5.5",
+              status: "in_progress",
+              output: [],
+            },
+          })}\r\n\r\n`,
+          `event: response.output_text.delta\r\ndata: ${JSON.stringify({
+            type: "response.output_text.delta",
+            response_id: "resp_1",
+            item_id: "msg_1",
+            output_index: 0,
+            content_index: 0,
+            delta: "hello",
+          })}`,
+        ].join("")),
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const writes = [];
+    await result.stream({ write: (chunk) => writes.push(String(chunk)) });
+    const text = writes.join("");
+    const events = sseEvents(text);
+    const completed = events.find((event) => event.type === "response.completed");
+    assert.ok(completed);
+    assert.equal(completed.response.id, "resp_1");
+    assert.equal(completed.response.model, "gpt-5-5");
+    assert.equal(completed.response.status, "completed");
+    assert.match(text, /data: \[DONE\]/);
+  });
+
   test("routes Responses requests to Cursor Composer bridge", async () => {
     const result = await handleProviderModelRequest(
       testConfig({
@@ -711,6 +759,18 @@ function jsonResponse(payload, status = 200) {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+function sseEvents(text) {
+  return text
+    .split("\n\n")
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .flatMap((block) => block.split(/\r?\n/))
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => line.slice("data: ".length))
+    .filter((line) => line !== "[DONE]")
+    .map((line) => JSON.parse(line));
 }
 
 async function codexAuthFile() {

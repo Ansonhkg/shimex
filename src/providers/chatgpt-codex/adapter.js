@@ -70,11 +70,11 @@ async function postChatGpt(route, suffix, body, options) {
   if (wantsStream) {
     return streamResult(async (response) => {
       const contentType = upstream.headers.get("content-type") || "";
-      if (contentType.toLowerCase().includes("text/event-stream")) {
-        await passThroughResponseEvents(response, upstream, options.requestedModel);
-      } else {
+      if (contentType.toLowerCase().includes("json")) {
         const payload = rewriteResponseModel(await upstream.json(), options.requestedModel);
         await writeSyntheticStream(response, payload, options);
+      } else {
+        await passThroughResponseEvents(response, upstream, options.requestedModel);
       }
     });
   }
@@ -88,27 +88,61 @@ async function postChatGpt(route, suffix, body, options) {
 async function passThroughResponseEvents(response, upstream, requestedModel) {
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawCompleted = false;
+  let responseSnapshot = null;
+
+  const processEvent = (event) => {
+    const data = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim())
+      .join("\n")
+      .trim();
+    if (!data || data === "[DONE]") {
+      return;
+    }
+    try {
+      const rewritten = rewriteResponseModel(JSON.parse(data), requestedModel);
+      if (rewritten?.response && typeof rewritten.response === "object") {
+        responseSnapshot = { ...responseSnapshot, ...rewritten.response };
+      }
+      if (rewritten?.type === "response.completed") {
+        sawCompleted = true;
+      }
+      response.write(`data: ${JSON.stringify(rewritten)}\n\n`);
+    } catch {
+      response.write(`data: ${data}\n\n`);
+    }
+  };
+
   for await (const chunk of upstream.body) {
-    buffer += decoder.decode(chunk, { stream: true });
+    buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, "\n");
     let boundary;
     while ((boundary = buffer.indexOf("\n\n")) >= 0) {
       const event = buffer.slice(0, boundary);
       buffer = buffer.slice(boundary + 2);
-      for (const line of event.split(/\r?\n/)) {
-        if (!line.startsWith("data:")) {
-          continue;
-        }
-        const data = line.slice("data:".length).trim();
-        if (!data || data === "[DONE]") {
-          continue;
-        }
-        try {
-          response.write(`data: ${JSON.stringify(rewriteResponseModel(JSON.parse(data), requestedModel))}\n\n`);
-        } catch {
-          response.write(`data: ${data}\n\n`);
-        }
-      }
+      processEvent(event);
     }
+  }
+  buffer += decoder.decode().replace(/\r\n/g, "\n");
+  if (buffer.trim()) {
+    processEvent(buffer);
+  }
+  if (!sawCompleted) {
+    const responseId = responseSnapshot?.id || `resp_${Date.now()}`;
+    response.write(`data: ${JSON.stringify({
+      type: "response.completed",
+      response: {
+        object: "response",
+        created_at: Math.floor(Date.now() / 1000),
+        output: [],
+        usage: null,
+        ...responseSnapshot,
+        id: responseId,
+        model: requestedModel,
+        status: "completed",
+      },
+    })}\n\n`);
   }
   response.write("data: [DONE]\n\n");
 }
