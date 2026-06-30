@@ -17,7 +17,7 @@ export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
       continue;
     }
     if (role === "tool") {
-      appendMessage(messages, "user", [{
+      appendToolResultMessage(messages, [{
         type: "tool_result",
         tool_use_id: message.tool_call_id || "call_0",
         content: contentToText(message.content),
@@ -132,20 +132,51 @@ function responseInputToChatMessages(body) {
     messages.push({ role: "user", content: input || "" });
     return messages;
   }
-  const pendingToolCalls = [];
-  const flushPendingToolCalls = () => {
-    if (!pendingToolCalls.length) {
+  const pendingToolCalls = new Map();
+  const pendingToolCallOrder = [];
+  const pushPendingToolCall = (call) => {
+    const id = call.id || "call_0";
+    if (!pendingToolCalls.has(id)) {
+      pendingToolCallOrder.push(id);
+    }
+    pendingToolCalls.set(id, call);
+  };
+  const takePendingToolCall = (callId) => {
+    const id = callId || "call_0";
+    const call = pendingToolCalls.get(id);
+    if (call) {
+      pendingToolCalls.delete(id);
+      const index = pendingToolCallOrder.indexOf(id);
+      if (index >= 0) {
+        pendingToolCallOrder.splice(index, 1);
+      }
+      return call;
+    }
+    return {
+      id,
+      type: "function",
+      function: {
+        name: "",
+        arguments: "{}",
+      },
+    };
+  };
+  const flushRemainingToolCalls = () => {
+    if (!pendingToolCallOrder.length) {
       return;
     }
     messages.push({
       role: "assistant",
       content: null,
-      tool_calls: pendingToolCalls.splice(0),
+      tool_calls: pendingToolCallOrder.splice(0).flatMap((id) => {
+        const call = pendingToolCalls.get(id);
+        pendingToolCalls.delete(id);
+        return call ? [call] : [];
+      }),
     });
   };
   for (const item of input) {
     if (typeof item === "string") {
-      flushPendingToolCalls();
       messages.push({ role: "user", content: item });
       continue;
     }
@@ -153,7 +184,7 @@ function responseInputToChatMessages(body) {
       continue;
     }
     if (item.type === "function_call") {
-      pendingToolCalls.push({
+      pushPendingToolCall({
         id: item.call_id || item.id || "call_0",
         type: "function",
         function: {
@@ -164,7 +195,12 @@ function responseInputToChatMessages(body) {
       continue;
     }
     if (item.type === "function_call_output") {
-      flushPendingToolCalls();
+      const toolCall = takePendingToolCall(item.call_id);
+      messages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [toolCall],
+      });
       messages.push({
         role: "tool",
         tool_call_id: item.call_id || "call_0",
@@ -172,13 +208,12 @@ function responseInputToChatMessages(body) {
       });
       continue;
     }
-    flushPendingToolCalls();
     messages.push({
       role: normalizeRole(item.role || "user"),
       content: item.content || item,
     });
   }
-  flushPendingToolCalls();
+  flushRemainingToolCalls();
   return messages;
 }
 
@@ -288,6 +323,19 @@ function appendMessage(messages, role, content) {
   } else {
     messages.push({ role, content });
   }
+}
+
+function appendToolResultMessage(messages, content) {
+  const previous = messages.at(-1);
+  if (
+    previous?.role === "user"
+    && Array.isArray(previous.content)
+    && previous.content.every((block) => block?.type === "tool_result")
+  ) {
+    previous.content.push(...content);
+    return;
+  }
+  messages.push({ role: "user", content });
 }
 
 function normalizeRole(role) {
