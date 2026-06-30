@@ -62,6 +62,10 @@ Shimex follows a layered architecture with strict dependency direction. Core nev
 imports provider or client modules directly — composition happens through the
 registry layer.
 
+<p align="center">
+  <img src="diagram.png" alt="Shimex request flow from Codex Desktop through the local shim to model providers" width="100%">
+</p>
+
 ```text
 CLI / HTTP / Admin UI
         -> product functions
