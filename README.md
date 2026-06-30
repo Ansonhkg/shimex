@@ -1,11 +1,11 @@
 # Shimex
 
 <p align="center">
-  <img src="docs/icon.png" alt="Shimex" width="128" height="128">
+  <img src="icon.png" alt="Shimex" width="128" height="128">
 </p>
 
 <p align="center">
-  <a href="docs/screenshot.png"><img src="docs/screenshot.png" alt="Shimex admin control plane" width="100%"></a>
+  <a href="screenshot.png"><img src="screenshot.png" alt="Shimex admin control plane" width="100%"></a>
 </p>
 
 <p align="center">
