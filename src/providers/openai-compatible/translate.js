@@ -1,7 +1,12 @@
 export function responsesToChat(body, upstreamModel) {
+  const toolsForProviders = ensureCodexAppThreadTools(body.tools);
   const messages = [];
   if (body.instructions) {
     messages.push({ role: "system", content: contentToText(body.instructions) });
+  }
+  const toolHint = codexAppToolHint(toolsForProviders);
+  if (toolHint) {
+    messages.push({ role: "system", content: toolHint });
   }
   messages.push(...responsesInputToMessages(body.input));
   const chat = {
@@ -15,7 +20,7 @@ export function responsesToChat(body, upstreamModel) {
   copyIfPresent(body, chat, "max_tokens");
   copyIfPresent(body, chat, "parallel_tool_calls");
   copyIfPresent(body, chat, "reasoning_effort");
-  const tools = responsesToolsToChatTools(body.tools);
+  const tools = responsesToolsToChatTools(toolsForProviders);
   if (tools.length) {
     chat.tools = tools;
   }
@@ -572,6 +577,7 @@ function dataUrl(part) {
 
 export function createToolNamespaceMap(tools) {
   const map = new Map();
+  tools = ensureCodexAppThreadTools(tools);
   if (!Array.isArray(tools)) {
     return map;
   }
@@ -603,6 +609,109 @@ function namespaceFields(toolNamespaceMap, name) {
   const normalized = normalizeToolNamespaceMap(toolNamespaceMap);
   const namespace = normalized?.get(name);
   return namespace ? { namespace } : {};
+}
+
+export function ensureCodexAppThreadTools(tools) {
+  if (!Array.isArray(tools)) {
+    return tools;
+  }
+  const hasCodexNamespace = tools.some((tool) => tool?.type === "namespace" && tool.name === "codex_app");
+  const hasThreadSend = tools.some((tool) => {
+    if (tool?.type === "namespace" && tool.name === "codex_app" && Array.isArray(tool.tools)) {
+      return tool.tools.some((nested) => nested?.name === "send_message_to_thread");
+    }
+    return (tool?.name || tool?.function?.name) === "send_message_to_thread";
+  });
+  if (hasCodexNamespace || hasThreadSend || !hasLoadedCodexAppTool(tools)) {
+    return tools;
+  }
+  return [...tools, codexAppThreadNamespaceTool()];
+}
+
+function hasLoadedCodexAppTool(tools) {
+  const loadedCodexAppTools = new Set([
+    "navigate_to_codex_page",
+    "read_thread_terminal",
+    "load_workspace_dependencies",
+  ]);
+  return tools.some((tool) => loadedCodexAppTools.has(tool?.name || tool?.function?.name));
+}
+
+function codexAppThreadNamespaceTool() {
+  return {
+    type: "namespace",
+    name: "codex_app",
+    tools: [
+      functionTool("list_threads", "List recent Codex threads across the local host and connected remote hosts. Use an optional query to find a specific thread before reading or steering it.", {
+        query: { type: "string", description: "Optional thread search query." },
+        limit: { type: "number", description: "Maximum number of thread summaries to return." },
+      }, []),
+      functionTool("read_thread", "Read recent status and turn summaries for one Codex thread without opening it.", {
+        threadId: { type: "string", description: "Thread id to inspect." },
+        hostId: { type: "string", description: "Optional host id returned by list_threads." },
+        turnLimit: { type: "number", description: "Maximum number of turns to return." },
+      }, ["threadId"]),
+      functionTool("send_message_to_thread", "Send a follow-up prompt to an existing Codex thread in the background. Omit model and thinking to keep the thread's current settings.", {
+        threadId: { type: "string", description: "Thread id to continue." },
+        hostId: { type: "string", description: "Optional host id returned by list_threads." },
+        prompt: { type: "string", description: "Follow-up prompt to send." },
+        model: { type: "string", description: "Optional model override." },
+        thinking: { type: "string", description: "Optional reasoning effort override." },
+      }, ["threadId", "prompt"]),
+      functionTool("create_thread", "Create a separate Codex thread only when the user explicitly asks for a new or background thread.", {
+        prompt: { type: "string", description: "Initial prompt for the new thread." },
+      }, ["prompt"]),
+      functionTool("fork_thread", "Fork a Codex thread. Omit threadId to fork the calling thread, or pass a threadId to fork that specific thread.", {
+        threadId: { type: "string", description: "Optional source thread id to fork." },
+      }, []),
+      functionTool("handoff_thread", "Move another Codex thread and its associated git state between its checkout and Codex worktree on its current host.", {
+        threadId: { type: "string", description: "Other thread id to hand off." },
+        followUpPrompt: { type: "string", description: "Optional prompt to send after handoff succeeds." },
+      }, ["threadId"]),
+    ],
+  };
+}
+
+function functionTool(name, description, properties, required) {
+  return {
+    type: "function",
+    name,
+    description,
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties,
+      required,
+    },
+  };
+}
+
+function codexAppToolHint(tools) {
+  const codexApp = Array.isArray(tools)
+    ? tools.find((tool) => tool?.type === "namespace" && tool.name === "codex_app" && Array.isArray(tool.tools))
+    : null;
+  if (!codexApp) {
+    return "";
+  }
+  const names = new Set(codexApp.tools.flatMap((tool) => tool?.name ? [tool.name] : []));
+  const threadTools = [
+    "list_threads",
+    "read_thread",
+    "send_message_to_thread",
+    "navigate_to_codex_page",
+    "create_thread",
+    "fork_thread",
+    "handoff_thread",
+  ].filter((name) => names.has(name));
+  if (!threadTools.length) {
+    return "";
+  }
+  return [
+    "Shimex exposes Codex app tools as callable functions in this request.",
+    "Available Codex app thread tools: " + threadTools.join(", ") + ".",
+    "These are not MCP resources; do not call list_mcp_resources to check whether Codex app thread tools exist.",
+    "For thread:// links or @thread requests, call send_message_to_thread with the target threadId and prompt when that tool is available.",
+  ].join(" ");
 }
 
 function responsesToolsToChatTools(tools) {

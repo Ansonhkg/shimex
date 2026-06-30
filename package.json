@@ -14,7 +14,8 @@
     "status": "node src/cli/main.js status",
     "stop": "node src/cli/main.js stop",
     "test": "node --test",
-    "check": "npm test && npm run shimex -- doctor"
+    "check": "npm test && npm run shimex -- doctor",
+    "stop:all": "node src/cli/main.js stop-all"
   },
   "engines": {
     "node": ">=20.0.0",

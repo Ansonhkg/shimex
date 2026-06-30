@@ -127,6 +127,15 @@ function styles() {
     .action .copy .t { font-size: 13px; font-weight: 500; }
     .action .copy .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
     .button-row { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+    .advanced-actions {
+      margin-top: 4px; color: var(--muted); font-size: 12px;
+    }
+    .advanced-actions summary {
+      cursor: pointer; user-select: none; width: fit-content;
+      padding: 4px 0; color: var(--muted);
+    }
+    .advanced-actions summary:hover { color: var(--text); }
+    .advanced-actions .button-row { margin-top: 8px; }
     button {
       font-family: inherit; font-size: 13px; font-weight: 500;
       padding: 7px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-strong);
@@ -248,7 +257,7 @@ function main() {
         <div class="card span-8">
           <div class="head">
             <h2>Managed Codex app</h2>
-            <span class="meta">preview before you apply</span>
+            <span class="meta">managed copy stays isolated</span>
           </div>
           <div class="actions" id="actions"></div>
           <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
@@ -375,21 +384,31 @@ function runtime() {
 
     function renderActions() {
       const managedExists = !!(state.doctor && state.doctor.managedShimexApp && state.doctor.managedShimexApp.exists);
-      const items = [
-        { id: "preview-install", endpoint: "/api/install", apply: false, label: "Preview setup", primary: !managedExists },
-        { id: "apply-install", endpoint: "/api/install", apply: true, label: managedExists ? "Replace app" : "Set up app", primary: !managedExists },
-        { id: "preview-sync", endpoint: "/api/sync", apply: false, label: "Preview update" },
-        { id: "apply-sync", endpoint: "/api/sync", apply: true, label: "Update app", primary: managedExists },
-        { id: "open", endpoint: "/api/open", apply: null, label: "Open Shimex", primary: managedExists },
+      const primaryItems = [
+        { id: "open", endpoint: "/api/open", apply: null, label: managedExists ? "Update and open" : "Set up and open", primary: true },
       ];
-      els.actions.innerHTML = items.map((item) => (
+      const advancedItems = [
+        { id: "preview-sync", endpoint: "/api/sync", apply: false, label: "Preview update" },
+        { id: "preview-install", endpoint: "/api/install", apply: false, label: "Preview setup" },
+        { id: "apply-install", endpoint: "/api/install", apply: true, label: managedExists ? "Replace app" : "Set up app" },
+      ];
+      const items = primaryItems.concat(advancedItems);
+      els.actions.innerHTML = primaryItems.map((item) => (
         '<div class="action">' +
           '<div class="copy"><div class="t">' + escapeHtml(item.label) + '</div>' +
           '<div class="d">' + escapeHtml(actionDescription(item)) + '</div></div>' +
           '<div class="button-row"><button data-id="' + escapeHtml(item.id) + '"' +
           (item.primary ? ' class="primary"' : '') + '>' + escapeHtml(item.label) + '</button></div>' +
         '</div>'
-      )).join("");
+      )).join("") +
+      '<details class="advanced-actions">' +
+        '<summary>Advanced setup actions</summary>' +
+        '<div class="button-row">' +
+          advancedItems.map((item) => (
+            '<button data-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.label) + '</button>'
+          )).join("") +
+        '</div>' +
+      '</details>';
       for (const button of els.actions.querySelectorAll("button[data-id]")) {
         button.addEventListener("click", () => runAction(items.find((it) => it.id === button.getAttribute("data-id"))));
       }
@@ -400,7 +419,7 @@ function runtime() {
       if (item.id === "apply-install") return "Create or replace the managed Shimex app and Codex profile.";
       if (item.id === "preview-sync") return "Show what would be refreshed from Codex and the provider model list.";
       if (item.id === "apply-sync") return "Refresh the managed Shimex app, profile, and model catalog.";
-      if (item.id === "open") return "Set up or update the managed app if needed and launch Shimex.";
+      if (item.id === "open") return "Refresh the managed app, profile, and model catalog if needed, then launch Shimex.";
       return "";
     }
 

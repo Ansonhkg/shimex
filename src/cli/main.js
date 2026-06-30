@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { createServer } from "../server/httpServer.js";
 import { loadShimexConfig } from "../core/config.js";
 import { discoverModels } from "../core/modelDiscovery.js";
@@ -7,6 +8,7 @@ import { listProviderManifests } from "../providers/index.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { installCodexClient, openCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
+import { resolveCodexPaths } from "../clients/codex/paths.js";
 import { clearServerPid, serverStatus, stopServer, writeServerPid } from "../server/process.js";
 
 const commands = {
@@ -16,6 +18,7 @@ const commands = {
   dev: runDev,
   status: runStatus,
   stop: runStop,
+  "stop-all": runStopAll,
   doctor: runDoctor,
   install: runInstall,
   sync: runSync,
@@ -46,6 +49,7 @@ start here:
   shimex dev
   shimex status
   shimex stop
+  shimex stop-all
   shimex providers list
   shimex models list
   shimex server start [--port <port>]
@@ -57,6 +61,7 @@ commands:
   dev                  Run the server in the foreground and open Shimex.app
   status               Show Shimex backend status
   stop                 Stop the detached Shimex backend
+  stop-all             Stop the backend and quit the managed Shimex.app
   doctor               Check Codex Desktop prerequisite and Shimex config
   install              Plan managed Shimex.app install; use --apply to write
   sync                 Plan managed Shimex.app resync; use --apply to write
@@ -129,6 +134,16 @@ async function runStop() {
   const result = await stopServer(config);
   console.log(JSON.stringify(result, null, 2));
   return result.stopped || result.reason === "server-not-running" ? 0 : 1;
+}
+
+async function runStopAll() {
+  const config = await loadShimexConfig();
+  const backend = await stopServer(config);
+  const app = await stopManagedAppProcesses(resolveCodexPaths(config).managedApp);
+  const result = { backend, app };
+  console.log(JSON.stringify(result, null, 2));
+  const backendOk = backend.stopped || backend.reason === "server-not-running";
+  return backendOk && app.ok ? 0 : 1;
 }
 
 async function runInstall(args) {
@@ -217,6 +232,52 @@ async function runServer(args) {
   return 0;
 }
 
+async function stopManagedAppProcesses(managedAppPath) {
+  const appPath = String(managedAppPath || "");
+  if (!appPath) {
+    return { ok: false, appPath, error: "managed app path is empty" };
+  }
+  const processes = await listProcesses();
+  const targets = processes.filter((processInfo) => processInfo.command.includes(appPath + "/Contents/"));
+  for (const target of targets) {
+    try {
+      process.kill(target.pid, "SIGTERM");
+    } catch (error) {
+      if (error?.code !== "ESRCH") {
+        target.error = String(error?.message || error);
+      }
+    }
+  }
+  return {
+    ok: targets.every((target) => !target.error),
+    appPath,
+    method: "path-scoped-sigterm",
+    count: targets.length,
+    pids: targets.map((target) => target.pid),
+    errors: targets.flatMap((target) => target.error ? [{ pid: target.pid, error: target.error }] : []),
+  };
+}
+
+function listProcesses() {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ps", ["-axo", "pid=,command="], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || "ps exited with " + code));
+        return;
+      }
+      resolve(stdout.split(/\r?\n/).flatMap((line) => {
+        const match = line.trim().match(/^(\d+)\s+(.+)$/);
+        return match ? [{ pid: Number(match[1]), command: match[2] }] : [];
+      }));
+    });
+  });
+}
 function readFlag(args, name) {
   const index = args.indexOf(name);
   if (index < 0) {

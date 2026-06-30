@@ -1,4 +1,21 @@
+import { readFile } from "node:fs/promises";
 import { readCodexAuth } from "./auth.js";
+import { expandHome } from "../../core/paths.js";
+
+const DEFAULT_CODEX_MODEL_CACHE = "~/.codex/models_cache.json";
+const DEFAULT_CODEX_MODEL_IDS = [
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.4-mini",
+  "gpt-5.3-codex-spark",
+];
+
+const FALLBACK_CODEX_MODELS = [
+  codexModel("gpt-5.5", "GPT-5.5", 272000, ["text", "image"], "medium", 20000),
+  codexModel("gpt-5.4", "GPT-5.4", 272000, ["text", "image"], "medium", 19990),
+  codexModel("gpt-5.4-mini", "GPT-5.4-Mini", 272000, ["text", "image"], "medium", 19980),
+  codexModel("gpt-5.3-codex-spark", "GPT-5.3-Codex-Spark", 128000, ["text"], "high", 19970),
+];
 
 export const chatgptCodexProvider = {
   id: "chatgpt-codex",
@@ -15,18 +32,47 @@ export const chatgptCodexProvider = {
         return [];
       }
     }
-    return [
-      {
-        slug: "gpt-5-5",
-        displayName: "GPT-5.5",
-        upstreamModel: "gpt-5.5",
-        contextWindow: 400000,
-        inputModalities: ["text", "image"],
-        priority: 10000,
-      },
-    ];
+    return await readCodexModelCache(config) || FALLBACK_CODEX_MODELS;
   },
 };
+
+async function readCodexModelCache(config) {
+  const path = expandHome(config.options?.models_cache_path || config.options?.modelsCachePath || process.env.CODEX_MODELS_CACHE_PATH || DEFAULT_CODEX_MODEL_CACHE);
+  let payload;
+  try {
+    payload = JSON.parse(await readFile(path, "utf8"));
+  } catch {
+    return null;
+  }
+  const sourceModels = Array.isArray(payload?.models) ? payload.models : Array.isArray(payload) ? payload : [];
+  const models = DEFAULT_CODEX_MODEL_IDS.flatMap((id, index) => {
+    const raw = sourceModels.find((model) => model?.slug === id || model?.id === id || model?.model === id);
+    if (!raw) {
+      return [];
+    }
+    return [codexModel(
+      id,
+      raw.displayName || raw.display_name || raw.name || id,
+      raw.contextWindow || raw.context_window || raw.max_context_window || FALLBACK_CODEX_MODELS[index].contextWindow,
+      raw.inputModalities || raw.input_modalities || FALLBACK_CODEX_MODELS[index].inputModalities,
+      raw.reasoningLevel || raw.reasoning_level || raw.default_reasoning_level || FALLBACK_CODEX_MODELS[index].reasoningLevel,
+      20000 - (index * 10),
+    )];
+  });
+  return models.length ? models : null;
+}
+
+function codexModel(upstreamModel, displayName, contextWindow, inputModalities, reasoningLevel, priority) {
+  return {
+    slug: upstreamModel.replace(/\./g, "-"),
+    displayName,
+    upstreamModel,
+    contextWindow,
+    inputModalities,
+    reasoningLevel,
+    priority,
+  };
+}
 
 function codexAuthPath(config) {
   return config.auth?.path || config.options?.auth_path || config.options?.authPath;
