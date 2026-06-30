@@ -56,6 +56,25 @@ describe("Provider request adapters", () => {
           { type: "function", name: "missing_type", parameters: { properties: { path: { type: "string" } } } },
           { type: "function", name: "nullable_object", parameters: { type: ["object", "null"], properties: { path: { type: "string" } } } },
           { type: "function", name: "scalar_schema", parameters: { type: "string" } },
+          {
+            type: "namespace",
+            name: "codex_app",
+            tools: [
+              {
+                type: "function",
+                name: "send_message_to_thread",
+                description: "Send a follow-up prompt to an existing Codex thread.",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    threadId: { type: "string" },
+                    prompt: { type: "string" },
+                  },
+                  required: ["threadId", "prompt"],
+                },
+              },
+            ],
+          },
         ],
       },
       {
@@ -73,11 +92,19 @@ describe("Provider request adapters", () => {
 
     assert.equal(result.status, 200);
     const upstreamBody = JSON.parse(calls[0].init.body);
-    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.parameters.type), ["object", "object", "object", "object"]);
+    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.name), [
+      "missing_parameters",
+      "missing_type",
+      "nullable_object",
+      "scalar_schema",
+      "send_message_to_thread",
+    ]);
+    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.parameters.type), ["object", "object", "object", "object", "object"]);
     assert.deepEqual(upstreamBody.tools[0].function.parameters.properties, {});
     assert.deepEqual(upstreamBody.tools[1].function.parameters.required, undefined);
     assert.equal(upstreamBody.tools[2].function.parameters.properties.path.type, "string");
     assert.deepEqual(upstreamBody.tools[3].function.parameters.required, ["value"]);
+    assert.equal(upstreamBody.tools[4].function.parameters.properties.threadId.type, "string");
   });
 
   test("converts Responses function call outputs into valid chat tool turns", async () => {
@@ -342,6 +369,23 @@ describe("Provider request adapters", () => {
             { role: "assistant", content: [{ type: "output_text", text: "Sending..." }] },
             { type: "function_call_output", call_id: "call_00", output: "sent" },
           ],
+          tools: [{
+            type: "namespace",
+            name: "codex_app",
+            tools: [{
+              type: "function",
+              name: "send_message_to_thread",
+              description: "Send a follow-up prompt to an existing Codex thread.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  threadId: { type: "string" },
+                  prompt: { type: "string" },
+                },
+                required: ["threadId", "prompt"],
+              },
+            }],
+          }],
           stream: true,
         },
         {
@@ -358,6 +402,8 @@ describe("Provider request adapters", () => {
 
       assert.equal(result.status, 200);
       const upstreamBody = JSON.parse(calls[0].init.body);
+      assert.deepEqual(upstreamBody.tools.map((tool) => tool.name), ["send_message_to_thread"]);
+      assert.equal(upstreamBody.tools[0].input_schema.properties.prompt.type, "string");
       assert.deepEqual(upstreamBody.messages, [
         { role: "user", content: "send to another thread" },
         {

@@ -306,12 +306,17 @@ function chatToolsToAnthropicTools(tools) {
   if (!Array.isArray(tools)) {
     return [];
   }
-  return tools.map((tool) => {
+  return tools.flatMap((tool) => {
+    if (tool?.type === "namespace" && Array.isArray(tool.tools)) {
+      return tool.tools;
+    }
+    return [tool];
+  }).map((tool) => {
     const fn = tool.function || tool;
     return {
       name: fn.name || tool.name || "",
       description: fn.description || tool.description || "",
-      input_schema: fn.parameters || tool.parameters || { type: "object", properties: {} },
+      input_schema: fn.parameters || tool.parameters || fn.inputSchema || tool.inputSchema || { type: "object", properties: {} },
     };
   }).filter((tool) => tool.name);
 }

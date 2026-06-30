@@ -567,13 +567,19 @@ function responsesToolsToChatTools(tools) {
     return [];
   }
   return tools
+    .flatMap((tool) => {
+      if (tool?.type === "namespace" && Array.isArray(tool.tools)) {
+        return tool.tools;
+      }
+      return [tool];
+    })
     .filter((tool) => tool?.type === "function" || tool?.name)
     .map((tool) => ({
       type: "function",
       function: {
         name: tool.name || tool.function?.name || "",
         description: tool.description || tool.function?.description || "",
-        parameters: objectParametersSchema(tool.parameters || tool.function?.parameters),
+        parameters: objectParametersSchema(tool.parameters || tool.inputSchema || tool.function?.parameters),
       },
     }))
     .filter((tool) => tool.function.name);
