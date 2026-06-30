@@ -44,6 +44,58 @@ describe("ClinePass adapter", () => {
     assert.deepEqual(JSON.parse(calls[1].init.body).model, "cline-pass/glm-5.2");
   });
 
+  test("adds deferred Codex app thread tools when only loaded app tools are sent", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-glm-5-2",
+        input: "say hi to designer",
+        stream: false,
+        tools: [loadedCodexAppTool()],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_1",
+              created: 123,
+              choices: [{
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [{
+                    id: "call_1",
+                    type: "function",
+                    function: {
+                      name: "send_message_to_thread",
+                      arguments: "{\"threadId\":\"thread_1\",\"prompt\":\"hi\"}",
+                    },
+                  }],
+                },
+              }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[1].init.body);
+    const toolNames = upstreamBody.tools.map((tool) => tool.function.name);
+    assert.ok(toolNames.includes("navigate_to_codex_page"));
+    assert.ok(toolNames.includes("send_message_to_thread"));
+    assert.match(upstreamBody.messages[0].content, /Codex app thread tools/);
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.output[0].name, "send_message_to_thread");
+    assert.equal(payload.output[0].namespace, "codex_app");
+  });
+
   test("restores namespace fields on ClinePass Responses function calls", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const calls = [];
@@ -202,6 +254,21 @@ async function clineSettingsFile() {
     },
   }));
   return path;
+}
+
+function loadedCodexAppTool() {
+  return {
+    type: "function",
+    name: "navigate_to_codex_page",
+    description: "Navigate the most recently focused main Codex window to a thread.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: { type: "string" },
+      },
+      required: ["threadId"],
+    },
+  };
 }
 
 function codexAppNamespaceTool() {
