@@ -87,6 +87,8 @@ describe("ClinePass adapter", () => {
 
     assert.equal(result.status, 200);
     const upstreamBody = JSON.parse(calls[1].init.body);
+    assert.match(upstreamBody.messages[0].content, /Codex app thread tools/);
+    assert.match(upstreamBody.messages[0].content, /do not call list_mcp_resources/);
     assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.name), ["send_message_to_thread"]);
     const payload = JSON.parse(result.body);
     assert.equal(payload.output[0].type, "function_call");

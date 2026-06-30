@@ -3,6 +3,10 @@ export function responsesToChat(body, upstreamModel) {
   if (body.instructions) {
     messages.push({ role: "system", content: contentToText(body.instructions) });
   }
+  const toolHint = codexAppToolHint(body.tools);
+  if (toolHint) {
+    messages.push({ role: "system", content: toolHint });
+  }
   messages.push(...responsesInputToMessages(body.input));
   const chat = {
     model: upstreamModel,
@@ -603,6 +607,34 @@ function namespaceFields(toolNamespaceMap, name) {
   const normalized = normalizeToolNamespaceMap(toolNamespaceMap);
   const namespace = normalized?.get(name);
   return namespace ? { namespace } : {};
+}
+
+function codexAppToolHint(tools) {
+  const codexApp = Array.isArray(tools)
+    ? tools.find((tool) => tool?.type === "namespace" && tool.name === "codex_app" && Array.isArray(tool.tools))
+    : null;
+  if (!codexApp) {
+    return "";
+  }
+  const names = new Set(codexApp.tools.flatMap((tool) => tool?.name ? [tool.name] : []));
+  const threadTools = [
+    "list_threads",
+    "read_thread",
+    "send_message_to_thread",
+    "navigate_to_codex_page",
+    "create_thread",
+    "fork_thread",
+    "handoff_thread",
+  ].filter((name) => names.has(name));
+  if (!threadTools.length) {
+    return "";
+  }
+  return [
+    "Shimex exposes Codex app tools as callable functions in this request.",
+    "Available Codex app thread tools: " + threadTools.join(", ") + ".",
+    "These are not MCP resources; do not call list_mcp_resources to check whether Codex app thread tools exist.",
+    "For thread:// links or @thread requests, call send_message_to_thread with the target threadId and prompt when that tool is available.",
+  ].join(" ");
 }
 
 function responsesToolsToChatTools(tools) {
