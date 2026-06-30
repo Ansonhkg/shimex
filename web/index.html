@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shimex — A local provider gateway for Codex Desktop</title>
+  <meta name="description" content="Shimex is a local Node.js daemon that fronts Codex Desktop with an OpenAI-compatible gateway, so you can use Anthropic, DeepSeek, Ollama, LM Studio, ClinePass, Cursor Composer and more from the same picker. Your original Codex install is never modified.">
+  <meta name="theme-color" content="#111111">
+  <link rel="icon" type="image/png" href="../icon.png">
+  <link rel="apple-touch-icon" href="../icon.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #6b6b6b;
+      --line: #e6e6e6;
+      --line-strong: #d4d4d4;
+      --link: #111111;
+      --code-bg: #f5f5f5;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+      font-feature-settings: "ss01", "cv11";
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+    body { line-height: 1.5; -webkit-font-smoothing: antialiased; font-size: 16px; }
+    a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+    a:hover { text-decoration-thickness: 2px; }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.9em;
+    }
+    code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+    pre {
+      background: var(--code-bg);
+      border-radius: 6px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 0;
+      line-height: 1.55;
+    }
+    pre code { background: transparent; padding: 0; border-radius: 0; font-size: 13px; }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Top bar — bare */
+    nav.topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 56px;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; text-decoration: none; color: var(--fg); }
+    .brand img { width: 22px; height: 22px; border-radius: 4px; }
+    .links { display: inline-flex; gap: 18px; font-size: 14px; }
+    .links a { text-decoration: none; color: var(--muted); }
+    .links a:hover { color: var(--fg); }
+
+    /* Hero */
+    .hero { padding: 8px 0 32px; }
+    .hero h1 {
+      font-size: 32px;
+      line-height: 1.15;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    .hero p.tagline {
+      font-size: 17px;
+      color: var(--muted);
+      margin: 0 0 28px;
+      max-width: 640px;
+    }
+    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      padding: 9px 14px;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      border: 1px solid var(--line-strong);
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .btn:hover { border-color: var(--fg); }
+    .btn.primary { background: var(--fg); color: #fff; border-color: var(--fg); }
+    .btn.primary:hover { background: #000; border-color: #000; }
+
+    /* Screenshot */
+    .screenshot {
+      margin: 40px 0 48px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .screenshot img { display: block; width: 100%; height: auto; }
+    .screenshot figcaption {
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    /* Section */
+    section { padding: 32px 0; }
+    section h2 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 16px;
+    }
+    section p { margin: 0 0 14px; }
+    section ul { padding-left: 20px; margin: 0 0 16px; }
+    section ul li { margin-bottom: 6px; }
+
+    /* Install */
+    pre.install { margin-top: 8px; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--line);
+      margin-top: 40px;
+      padding: 24px 0 56px;
+      font-size: 13px;
+      color: var(--muted);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 12px;
+    }
+    footer .links { font-size: 13px; }
+
+    @media (max-width: 540px) {
+      .hero h1 { font-size: 26px; }
+      .hero p.tagline { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+<nav class="topbar">
+  <a class="brand" href="/">
+    <img src="../icon.png" alt="Shimex">
+    Shimex
+  </a>
+  <span class="links">
+    <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a>
+    <a href="https://github.com/Ansonhkg/shimex#readme" rel="noopener">Readme</a>
+  </span>
+</nav>
+
+<header class="hero">
+  <h1>A local provider gateway for Codex Desktop.</h1>
+  <p class="tagline">
+    Shimex sits between Codex Desktop and any LLM provider &mdash; Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, ClinePass &mdash; behind an OpenAI-compatible HTTP daemon. Your original Codex install is never modified.
+  </p>
+  <div class="cta-row">
+    <a class="btn primary" href="https://github.com/Ansonhkg/shimex" rel="noopener">View on GitHub &rarr;</a>
+    <a class="btn" href="#install">Install</a>
+  </div>
+</header>
+
+<figure class="screenshot">
+  <img src="../screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
+  <figcaption>The local admin control plane at <code>http://127.0.0.1:18765/admin</code>.</figcaption>
+</figure>
+
+<section>
+  <h2>What it does</h2>
+  <ul>
+    <li>Copies your real <code>/Applications/Codex.app</code> into a managed <code>Shimex.app</code> with an isolated profile and model catalog. The original Codex app stays untouched.</li>
+    <li>Exposes an OpenAI-compatible gateway at <code>http://127.0.0.1:18765/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
+    <li>Normalises Anthropic Messages, OpenAI Responses, OpenAI Chat, and Cursor Composer behind the same inbound shape. Streaming SSE everywhere; non-streaming upstreams are wrapped in a single-chunk SSE so the consumer always sees SSE.</li>
+    <li>Discovers models dynamically with a written cache. Catalog reads don&rsquo;t require a live network call; refresh is best-effort on startup.</li>
+    <li>Holds capabilities to what each provider can actually do. Text-only models reject image input with a typed error instead of dropping parts silently.</li>
+    <li>Keeps secrets out of source. API keys live in the git-ignored <code>.env</code> and are referenced via <code>auth: { type: env, name: … }</code>.</li>
+  </ul>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+  <p>macOS with Codex Desktop installed at <code>/Applications/Codex.app</code>, Node 20+, npm 10+.</p>
+<pre class="install"><code>git clone https://github.com/Ansonhkg/shimex.git ~/Projects/shimex
+cd ~/Projects/shimex
+npm install
+cp .env.example .env   # add your API keys; .env is git-ignored
+npm start              # prepares Shimex.app, launches the daemon at :18765</code></pre>
+  <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="http://127.0.0.1:18765/admin"><code>http://127.0.0.1:18765/admin</code></a>.</p>
+</section>
+
+<section>
+  <h2>Verify</h2>
+<pre><code>npm run status                                 # PID, log path, health
+npm run shimex -- doctor                       # prerequisite check
+npm run shimex -- providers list               # configured providers
+npm run shimex -- models list                  # discovered models</code></pre>
+</section>
+
+<section>
+  <h2>License</h2>
+  <p>Shimex is an unofficial, source-preserving companion project. Codex Desktop is a third-party product of OpenAI.</p>
+</section>
+
+<footer>
+  <span>&copy; Anson Poon</span>
+  <span class="links">
+    <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a>
+    <a href="../README.md">README</a>
+    <a href="../AGENTS.md">AGENTS.md</a>
+  </span>
+</footer>
+
+</div>
+
+</body>
+</html>
