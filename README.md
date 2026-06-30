@@ -35,6 +35,7 @@ Codex app so your original installation stays untouched.
 - [Development](#development)
 - [Tests](#tests)
 - [macOS Signing & Keychain](#macos-signing--keychain)
+- [Credits](#credits)
 - [License](#license)
 
 ---
@@ -564,6 +565,13 @@ This is macOS asking whether the re-signed managed app may read the local
 Keychain item Codex/Electron uses for encrypted local storage. It is not an
 OpenAI sign-in prompt and does not delete or rewrite session files. Allowing it
 lets the managed app behave like Codex without encrypted-storage failures.
+
+---
+
+## Credits
+
+Shimex builds on ideas and behavior from
+[sybil-solutions/codex-shim](https://github.com/sybil-solutions/codex-shim).
 
 ---
 
