@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://shimex.vercel.app/sitemap.xml
+Sitemap: https://shimex.xyz/sitemap.xml
