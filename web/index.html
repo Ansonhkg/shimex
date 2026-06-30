@@ -9,8 +9,8 @@
   <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#111111">
   <link rel="canonical" href="https://shimex.xyz/">
-  <link rel="icon" type="image/png" href="/icon.png">
-  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shimex.xyz/">
@@ -280,7 +280,7 @@
 
 <nav class="topbar">
   <a class="brand" href="/">
-    <img src="/icon.png" alt="Shimex">
+    <img src="icon.png" alt="Shimex">
     Shimex
   </a>
   <span class="links">
@@ -321,7 +321,7 @@
 </header>
 
 <figure class="screenshot">
-  <img src="/screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
+  <img src="screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
   <figcaption>The local admin control plane at <code>http://127.0.0.1:18765/admin</code>.</figcaption>
 </figure>
 
@@ -416,67 +416,74 @@ npm run shimex -- models list                  # discovered models</code></pre>
 
 <script>
   // Minimal shell-script syntax highlighter.
-  // Pure regex-based; no dependencies; works on any <pre><code> block whose
-  // language we declare (default: "shell"). Highlights: comments, strings,
-  // variables ($FOO, ${FOO}), built-in commands, numeric flags, h4 headings.
+  // Pure inline implementation; no dependencies; highlights: comments, strings,
+  // variables ($FOO), flags (--foo, -x, --), and a small set of commands.
   (function () {
-    function escapeHtml(s) {
-      return s.replace(/[&<>"']/g, function (c) {
+    var COMMANDS = {
+      git:1, cd:1, cp:1, npm:1, npx:1, node:1, mkdir:1, mv:1, rm:1, ls:1,
+      cat:1, echo:1, export:1, source:1, brew:1, apt:1, "apt-get":1,
+      yarn:1, pnpm:1, make:1, sudo:1, open:1
+    };
+  
+    function esc(s) {
+      return (s == null ? "" : String(s)).replace(/[&<>"']/g, function (c) {
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     }
   
-    // Token classes we emit; theme in CSS attaches colours via .tok-*
-    var COMMANDS = new Set([
-      "git","cd","cp","npm","npx","node","mkdir","mv","rm","ls","cat","echo",
-      "export","source","brew","apt","apt-get","yarn","pnpm","make","sudo","open"
-    ]);
-  
-    function highlight(src) {
-      // 1) comments first to avoid colouring inside them
-      var out = src.split(/(\s*#[^\n]*)/g);
-      var html = "";
-      for (var i = 0; i < out.length; i++) {
-        var part = out[i];
-        if (i % 2 === 1) {
-          html += '<span class="tok-c">' + escapeHtml(part.replace(/^\n\s*/, "")) + "</span>\n";
-          continue;
+    function tok(text) {
+      var html = "", i = 0, prev = " ";
+      while (i < text.length) {
+        var rest = text.slice(i);
+        // Strings
+        var sm = rest.match(/^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/);
+        if (sm) { html += '<span class="tok-s">' + esc(sm[1]) + "</span>"; i += sm[1].length; prev = text[i-1] || " "; continue; }
+        // Variables
+        var vm = rest.match(/^(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)/);
+        if (vm) { html += '<span class="tok-v">' + esc(vm[1]) + "</span>"; i += vm[1].length; prev = text[i-1] || " "; continue; }
+        // Flags: --foo, -x, or bare -- (must be preceded by separator)
+        if (/[\s;&|()>=<]/.test(prev)) {
+          var fm = rest.match(/^(--[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z]|--)(?=$|[^A-Za-z0-9_-])/);
+          if (fm) { html += '<span class="tok-f">' + esc(fm[1]) + "</span>"; i += fm[1].length; prev = text[i-1] || " "; continue; }
+          var cm = rest.match(/^(git|cd|cp|npm|npx|node|mkdir|mv|rm|ls|cat|echo|export|source|brew|apt|apt-get|yarn|pnpm|make|sudo|open)(?=$|[^A-Za-z0-9_-])/);
+          if (cm && COMMANDS[cm[1]]) { html += '<span class="tok-k">' + esc(cm[1]) + "</span>"; i += cm[1].length; prev = text[i-1] || " "; continue; }
         }
-        html += highlightChunk(part);
+        html += esc(text[i]);
+        prev = text[i];
+        i++;
       }
       return html;
     }
   
-    function highlightChunk(line) {
-      // Process tokens left-to-right; longest non-overlapping match wins.
+    function highlight(src) {
+      var lines = src.split("\n");
       var out = "";
-      var re = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|--?[A-Za-z0-9][A-Za-z0-9_-]*|\b(?:git|cd|cp|npm|npx|node|mkdir|mv|rm|ls|cat|echo|export|source|brew|apt|apt-get|yarn|pnpm|make|sudo|open)\b)/g;
-      var last = 0, m;
-      while ((m = re.exec(line)) !== null) {
-        out += escapeHtml(line.slice(last, m.index));
-        var tok = m[0];
-        var cls = "tok-p";                       // default text
-        if (tok.charAt(0) === '"' || tok.charAt(0) === "'") cls = "tok-s";
-        else if (tok.charAt(0) === "$")         cls = "tok-v";
-        else if (tok.indexOf("--") === 0 || tok.charAt(0) === "-") cls = "tok-f";
-        else if (COMMANDS.has(tok))              cls = "tok-k";
-        out += '<span class="' + cls + '">' + escapeHtml(tok) + "</span>";
-        last = re.lastIndex;
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li], comment = "", code = line;
+        // Find inline comment start
+        for (var i = 0; i < line.length; i++) {
+          if (line[i] === "#" && (i === 0 || /[ \t]/.test(line[i-1]))) {
+            code = line.slice(0, i);
+            comment = line.slice(i);
+            break;
+          }
+        }
+        out += tok(code);
+        if (comment) out += '<span class="tok-c">' + esc(comment) + "</span>";
+        if (li < lines.length - 1) out += "\n";
       }
-      out += escapeHtml(line.slice(last));
       return out;
     }
   
     function run() {
-      var blocks = document.querySelectorAll('pre code');
+      var blocks = document.querySelectorAll("pre code");
       for (var i = 0; i < blocks.length; i++) {
         var el = blocks[i];
-        // Skip if already highlighted or explicitly disabled
         if (el.dataset.highlighted === "1" || el.dataset.highlight === "off") continue;
-        var lang = (el.className.match(/language-([\w-]+)/) || [, "shell"])[1].toLowerCase();
+        var cls = (el.className || "").match(/language-([\w-]+)/);
+        var lang = cls ? cls[1].toLowerCase() : "shell";
         if (lang !== "shell" && lang !== "sh" && lang !== "bash" && lang !== "console") continue;
-        var src = el.textContent;
-        el.innerHTML = highlight(src);
+        el.innerHTML = highlight(el.textContent);
         el.dataset.highlighted = "1";
       }
     }
@@ -487,7 +494,7 @@ npm run shimex -- models list                  # discovered models</code></pre>
       run();
     }
   })();
-</script>
+  </script>
 <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "41cee9981f5144f091586f48ae0eb831"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
