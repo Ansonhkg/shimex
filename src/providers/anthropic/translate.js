@@ -17,18 +17,15 @@ export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
       continue;
     }
     if (role === "tool") {
-      messages.push({
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: message.tool_call_id || "call_0",
-          content: contentToText(message.content),
-        }],
-      });
+      appendMessage(messages, "user", [{
+        type: "tool_result",
+        tool_use_id: message.tool_call_id || "call_0",
+        content: contentToText(message.content),
+      }]);
       continue;
     }
     if (role === "assistant") {
-      const content = chatContentToAnthropicBlocks(message.content);
+      const content = message.content ? chatContentToAnthropicBlocks(message.content) : [];
       for (const call of message.tool_calls || []) {
         const fn = call.function || {};
         content.push({
@@ -135,8 +132,20 @@ function responseInputToChatMessages(body) {
     messages.push({ role: "user", content: input || "" });
     return messages;
   }
+  const pendingToolCalls = [];
+  const flushPendingToolCalls = () => {
+    if (!pendingToolCalls.length) {
+      return;
+    }
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: pendingToolCalls.splice(0),
+    });
+  };
   for (const item of input) {
     if (typeof item === "string") {
+      flushPendingToolCalls();
       messages.push({ role: "user", content: item });
       continue;
     }
@@ -144,18 +153,18 @@ function responseInputToChatMessages(body) {
       continue;
     }
     if (item.type === "function_call") {
-      messages.push({
-        role: "assistant",
-        content: "",
-        tool_calls: [{
-          id: item.call_id || item.id || "call_0",
-          type: "function",
-          function: { name: item.name || "", arguments: item.arguments || "" },
-        }],
+      pendingToolCalls.push({
+        id: item.call_id || item.id || "call_0",
+        type: "function",
+        function: {
+          name: item.name || "",
+          arguments: item.arguments || "",
+        },
       });
       continue;
     }
     if (item.type === "function_call_output") {
+      flushPendingToolCalls();
       messages.push({
         role: "tool",
         tool_call_id: item.call_id || "call_0",
@@ -163,11 +172,13 @@ function responseInputToChatMessages(body) {
       });
       continue;
     }
+    flushPendingToolCalls();
     messages.push({
       role: normalizeRole(item.role || "user"),
       content: item.content || item,
     });
   }
+  flushPendingToolCalls();
   return messages;
 }
 
@@ -350,4 +361,3 @@ function copyIfPresent(source, target, key) {
     target[key] = source[key];
   }
 }
-

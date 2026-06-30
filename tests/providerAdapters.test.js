@@ -250,6 +250,67 @@ describe("Provider request adapters", () => {
     }
   });
 
+  test("groups Anthropic tool uses immediately before their tool results", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "anthropic",
+          endpoint: "https://api.anthropic.com/v1",
+          auth: { type: "env", name: "ANTHROPIC_API_KEY" },
+          models: [modelConfig({ slug: "claude-test", upstreamModel: "claude-upstream" })],
+        }),
+        "/v1/responses",
+        {
+          model: "claude-test",
+          input: [
+            { role: "user", content: [{ type: "input_text", text: "show me the architecture" }] },
+            { type: "function_call", call_id: "call_00", name: "exec_command", arguments: "{\"cmd\":\"rg\"}" },
+            { type: "function_call", call_id: "call_01", name: "exec_command", arguments: "{\"cmd\":\"sed\"}" },
+            { type: "function_call_output", call_id: "call_00", output: "rg output" },
+            { type: "function_call_output", call_id: "call_01", output: "sed output" },
+          ],
+          stream: true,
+        },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "msg_1",
+              model: "claude-upstream",
+              content: [{ type: "text", text: "diagram" }],
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      const upstreamBody = JSON.parse(calls[0].init.body);
+      assert.equal(upstreamBody.stream, false);
+      assert.deepEqual(upstreamBody.messages, [
+        { role: "user", content: "show me the architecture" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "call_00", name: "exec_command", input: { cmd: "rg" } },
+            { type: "tool_use", id: "call_01", name: "exec_command", input: { cmd: "sed" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "call_00", content: "rg output" },
+            { type: "tool_result", tool_use_id: "call_01", content: "sed output" },
+          ],
+        },
+      ]);
+    } finally {
+      setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
+    }
+  });
+
   test("returns 404 for unknown model slugs", async () => {
     const result = await handleProviderModelRequest(testConfig({
       id: "lm-studio",
