@@ -3,11 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shimex — A local provider gateway for Codex Desktop</title>
-  <meta name="description" content="Shimex is a local Node.js daemon that fronts Codex Desktop with an OpenAI-compatible gateway, so you can use Anthropic, DeepSeek, Ollama, LM Studio, ClinePass, Cursor Composer and more from the same picker. Your original Codex install is never modified.">
+  <title>Shimex - Local Provider Gateway for Codex Desktop</title>
+  <meta name="description" content="Shimex is a local provider gateway for Codex Desktop. Use ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers from one managed Codex app.">
+  <meta name="application-name" content="Shimex">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#111111">
-  <link rel="icon" type="image/png" href="../icon.png">
-  <link rel="apple-touch-icon" href="../icon.png">
+  <link rel="canonical" href="https://shimex.xyz/">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <meta property="og:site_name" content="Shimex">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://shimex.xyz/">
+  <meta property="og:title" content="Shimex - Local Provider Gateway for Codex Desktop">
+  <meta property="og:description" content="Route Codex Desktop through ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers without modifying your original Codex app.">
+  <meta property="og:image" content="https://shimex.xyz/screenshot.png">
+  <meta property="og:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Shimex - Local Provider Gateway for Codex Desktop">
+  <meta name="twitter:description" content="Use more model providers from Codex Desktop through one local OpenAI-compatible gateway.">
+  <meta name="twitter:image" content="https://shimex.xyz/screenshot.png">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://shimex.xyz/#website",
+          "name": "Shimex",
+          "url": "https://shimex.xyz/",
+          "description": "A local provider gateway and managed companion for Codex Desktop.",
+          "inLanguage": "en"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://shimex.xyz/#software",
+          "name": "Shimex",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "macOS",
+          "url": "https://shimex.xyz/",
+          "image": "https://shimex.xyz/screenshot.png",
+          "description": "Shimex gives Codex Desktop a local OpenAI-compatible API gateway for ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        },
+        {
+          "@type": "ItemList",
+          "@id": "https://shimex.xyz/#site-navigation",
+          "name": "Shimex sections",
+          "itemListElement": [
+            { "@type": "SiteNavigationElement", "position": 1, "name": "Pricing", "url": "https://shimex.xyz/#pricing" },
+            { "@type": "SiteNavigationElement", "position": 2, "name": "CLI", "url": "https://shimex.xyz/#cli" },
+            { "@type": "SiteNavigationElement", "position": 3, "name": "Documentation", "url": "https://shimex.xyz/#documentation" },
+            { "@type": "SiteNavigationElement", "position": 4, "name": "Providers", "url": "https://shimex.xyz/#providers" },
+            { "@type": "SiteNavigationElement", "position": 5, "name": "FAQ", "url": "https://shimex.xyz/#faq" }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://shimex.xyz/#faq-schema",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Does Shimex modify the original Codex app?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. Shimex creates a managed app copy and isolated profile, leaving the original Codex Desktop installation untouched."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which providers can Shimex route to?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Where do API keys live?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Provider secrets live in a local git-ignored .env file and are referenced from shimex.yml by environment variable name."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  </script>
   <style>
     :root {
       color-scheme: light;
@@ -120,6 +206,44 @@
     section ul { padding-left: 20px; margin: 0 0 16px; }
     section ul li { margin-bottom: 6px; }
 
+    .sitelinks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 24px 0 8px;
+    }
+    .sitelink {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 14px;
+      text-decoration: none;
+      display: block;
+    }
+    .sitelink strong { display: block; font-size: 15px; margin-bottom: 4px; }
+    .sitelink span { color: var(--muted); font-size: 13px; display: block; }
+    .sitelink:hover { border-color: var(--fg); text-decoration: none; }
+
+    .split-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .mini-card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 14px;
+    }
+    .mini-card h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+    .mini-card p { color: var(--muted); font-size: 14px; margin: 0; }
+
+    .faq-item { border-top: 1px solid var(--line); padding: 16px 0; }
+    .faq-item h3 { margin: 0 0 6px; font-size: 16px; }
+    .faq-item p { color: var(--muted); }
+
     /* Install */
     pre.install { margin-top: 8px; }
 
@@ -138,7 +262,16 @@
     @media (max-width: 540px) {
       .hero h1 { font-size: 26px; }
       .hero p.tagline { font-size: 16px; }
+      .sitelinks, .split-list { grid-template-columns: 1fr; }
     }
+    /* === Syntax-highlight tokens (kept restrained for YC look) === */
+    pre code .tok-k { color: #b85c1b; font-weight: 600; }   /* commands: git, npm, cd, cp, ... */
+    pre code .tok-f { color: #5b6b8a; }                     /* flags: --flag, -x */
+    pre code .tok-s { color: #1f7a3a; }                     /* strings: "..." '...' */
+    pre code .tok-v { color: #6b3fa0; }                     /* $VAR, ${VAR} */
+    pre code .tok-c { color: #9aa0a6; font-style: italic; } /* # comments */
+    pre { scrollbar-width: thin; }
+    pre:focus { outline: 2px solid var(--line-strong); outline-offset: 2px; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -147,32 +280,52 @@
 
 <nav class="topbar">
   <a class="brand" href="/">
-    <img src="../icon.png" alt="Shimex">
+    <img src="/icon.png" alt="Shimex">
     Shimex
   </a>
   <span class="links">
-    <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a>
-    <a href="https://github.com/Ansonhkg/shimex#readme" rel="noopener">Readme</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#cli">CLI</a>
+    <a href="#documentation">Docs</a>
+    <a href="#faq">FAQ</a>
   </span>
 </nav>
 
 <header class="hero">
-  <h1>A local provider gateway for Codex Desktop.</h1>
+  <h1>Shimex - local provider gateway for Codex Desktop.</h1>
   <p class="tagline">
     Shimex sits between Codex Desktop and any LLM provider &mdash; Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, ClinePass &mdash; behind an OpenAI-compatible HTTP daemon. Your original Codex install is never modified.
   </p>
   <div class="cta-row">
-    <a class="btn primary" href="https://github.com/Ansonhkg/shimex" rel="noopener">View on GitHub &rarr;</a>
+    <a class="btn primary" href="#install">Install Shimex &rarr;</a>
     <a class="btn" href="#install">Install</a>
+  </div>
+  <div class="sitelinks" aria-label="Popular Shimex pages">
+    <a class="sitelink" href="#pricing">
+      <strong>Pricing</strong>
+      <span>Free local gateway. Bring your own provider keys or local models.</span>
+    </a>
+    <a class="sitelink" href="#cli">
+      <strong>CLI</strong>
+      <span>Install, sync, start, stop, and inspect Shimex from npm scripts.</span>
+    </a>
+    <a class="sitelink" href="#documentation">
+      <strong>Documentation</strong>
+      <span>How Shimex manages Codex Desktop, providers, models, and secrets.</span>
+    </a>
+    <a class="sitelink" href="#faq">
+      <strong>FAQ</strong>
+      <span>Answers about app safety, supported providers, and API keys.</span>
+    </a>
   </div>
 </header>
 
 <figure class="screenshot">
-  <img src="../screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
+  <img src="/screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
   <figcaption>The local admin control plane at <code>http://127.0.0.1:18765/admin</code>.</figcaption>
 </figure>
 
-<section>
+<section id="providers">
   <h2>What it does</h2>
   <ul>
     <li>Copies your real <code>/Applications/Codex.app</code> into a managed <code>Shimex.app</code> with an isolated profile and model catalog. The original Codex app stays untouched.</li>
@@ -184,10 +337,25 @@
   </ul>
 </section>
 
+<section id="pricing">
+  <h2>Pricing</h2>
+  <p>Shimex is a local gateway. It does not add a usage meter or hosted subscription layer.</p>
+  <div class="split-list">
+    <div class="mini-card">
+      <h3>Free local app</h3>
+      <p>Run the Shimex daemon and managed Codex app on your machine.</p>
+    </div>
+    <div class="mini-card">
+      <h3>Bring your provider</h3>
+      <p>Use your own API keys, ClinePass session, LM Studio server, Ollama models, or other configured endpoints.</p>
+    </div>
+  </div>
+</section>
+
 <section id="install">
   <h2>Install</h2>
   <p>macOS with Codex Desktop installed at <code>/Applications/Codex.app</code>, Node 20+, npm 10+.</p>
-<pre class="install"><code>git clone https://github.com/Ansonhkg/shimex.git ~/Projects/shimex
+<pre class="install" tabindex="0"><code class="language-shell">git clone &lt;repo-url&gt; ~/Projects/shimex
 cd ~/Projects/shimex
 npm install
 cp .env.example .env   # add your API keys; .env is git-ignored
@@ -195,29 +363,131 @@ npm start              # prepares Shimex.app, launches the daemon at :18765</cod
   <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="http://127.0.0.1:18765/admin"><code>http://127.0.0.1:18765/admin</code></a>.</p>
 </section>
 
-<section>
-  <h2>Verify</h2>
-<pre><code>npm run status                                 # PID, log path, health
+<section id="cli">
+  <h2>CLI</h2>
+  <p>Run Shimex from npm. These commands manage the daemon, inspect health, and list configured provider models.</p>
+<pre tabindex="0"><code class="language-shell">npm run status                                 # PID, log path, health
 npm run shimex -- doctor                       # prerequisite check
 npm run shimex -- providers list               # configured providers
 npm run shimex -- models list                  # discovered models</code></pre>
 </section>
 
-<section>
-  <h2>License</h2>
-  <p>Shimex is an unofficial, source-preserving companion project. Codex Desktop is a third-party product of OpenAI.</p>
+<section id="documentation">
+  <h2>Documentation</h2>
+  <p>Shimex is configured by <code>shimex.yml</code> and a local git-ignored <code>.env</code>. The managed app copy, isolated Codex profile, model catalog, and local gateway are all created from those files.</p>
+  <div class="split-list">
+    <div class="mini-card">
+      <h3>Managed Codex app</h3>
+      <p>Shimex copies Codex Desktop into a managed app and points that copy at the local gateway.</p>
+    </div>
+    <div class="mini-card">
+      <h3>Provider adapters</h3>
+      <p>Adapters translate provider-specific request, response, model, and streaming behavior into Codex-ready shapes.</p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <h2>FAQ</h2>
+  <div class="faq-item">
+    <h3>Does Shimex modify the original Codex app?</h3>
+    <p>No. Shimex creates a managed app copy and isolated profile so the original Codex Desktop installation stays untouched.</p>
+  </div>
+  <div class="faq-item">
+    <h3>Which providers can Shimex use?</h3>
+    <p>Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers.</p>
+  </div>
+  <div class="faq-item">
+    <h3>Where do API keys live?</h3>
+    <p>Provider secrets live in a local <code>.env</code> file that is ignored by git. <code>shimex.yml</code> references those secrets by environment variable name.</p>
+  </div>
 </section>
 
 <footer>
-  <span>&copy; Anson Poon</span>
+  <span>Shimex is an unofficial, source-preserving companion project. Codex Desktop is a third-party product of OpenAI.</span>
   <span class="links">
-    <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a>
-    <a href="../README.md">README</a>
-    <a href="../AGENTS.md">AGENTS.md</a>
+    <a href="#documentation">Documentation</a>
+    <a href="#cli">CLI</a>
   </span>
 </footer>
 
 </div>
 
+
+<script>
+  // Minimal shell-script syntax highlighter.
+  // Pure regex-based; no dependencies; works on any <pre><code> block whose
+  // language we declare (default: "shell"). Highlights: comments, strings,
+  // variables ($FOO, ${FOO}), built-in commands, numeric flags, h4 headings.
+  (function () {
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+  
+    // Token classes we emit; theme in CSS attaches colours via .tok-*
+    var COMMANDS = new Set([
+      "git","cd","cp","npm","npx","node","mkdir","mv","rm","ls","cat","echo",
+      "export","source","brew","apt","apt-get","yarn","pnpm","make","sudo","open"
+    ]);
+  
+    function highlight(src) {
+      // 1) comments first to avoid colouring inside them
+      var out = src.split(/(\s*#[^\n]*)/g);
+      var html = "";
+      for (var i = 0; i < out.length; i++) {
+        var part = out[i];
+        if (i % 2 === 1) {
+          html += '<span class="tok-c">' + escapeHtml(part.replace(/^\n\s*/, "")) + "</span>\n";
+          continue;
+        }
+        html += highlightChunk(part);
+      }
+      return html;
+    }
+  
+    function highlightChunk(line) {
+      // Process tokens left-to-right; longest non-overlapping match wins.
+      var out = "";
+      var re = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|--?[A-Za-z0-9][A-Za-z0-9_-]*|\b(?:git|cd|cp|npm|npx|node|mkdir|mv|rm|ls|cat|echo|export|source|brew|apt|apt-get|yarn|pnpm|make|sudo|open)\b)/g;
+      var last = 0, m;
+      while ((m = re.exec(line)) !== null) {
+        out += escapeHtml(line.slice(last, m.index));
+        var tok = m[0];
+        var cls = "tok-p";                       // default text
+        if (tok.charAt(0) === '"' || tok.charAt(0) === "'") cls = "tok-s";
+        else if (tok.charAt(0) === "$")         cls = "tok-v";
+        else if (tok.indexOf("--") === 0 || tok.charAt(0) === "-") cls = "tok-f";
+        else if (COMMANDS.has(tok))              cls = "tok-k";
+        out += '<span class="' + cls + '">' + escapeHtml(tok) + "</span>";
+        last = re.lastIndex;
+      }
+      out += escapeHtml(line.slice(last));
+      return out;
+    }
+  
+    function run() {
+      var blocks = document.querySelectorAll('pre code');
+      for (var i = 0; i < blocks.length; i++) {
+        var el = blocks[i];
+        // Skip if already highlighted or explicitly disabled
+        if (el.dataset.highlighted === "1" || el.dataset.highlight === "off") continue;
+        var lang = (el.className.match(/language-([\w-]+)/) || [, "shell"])[1].toLowerCase();
+        if (lang !== "shell" && lang !== "sh" && lang !== "bash" && lang !== "console") continue;
+        var src = el.textContent;
+        el.innerHTML = highlight(src);
+        el.dataset.highlighted = "1";
+      }
+    }
+  
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+  })();
+</script>
+<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "41cee9981f5144f091586f48ae0eb831"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
