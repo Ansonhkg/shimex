@@ -108,7 +108,7 @@ describe("Shimex scaffold", () => {
     assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
     assert.ok(config.providers.find((provider) => provider.id === "deepseek")?.models.some((model) => model.slug === "deepseek-v4-pro"));
     assert.ok(config.providers.find((provider) => provider.id === "cloudflare-workers-ai")?.models.some((model) => model.slug === "cloudflare-glm-5-2"));
-    assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, false);
+    assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, true);
   });
 
   test("hides ChatGPT Codex models when external auth is unavailable", async () => {
@@ -126,18 +126,29 @@ describe("Shimex scaffold", () => {
   });
 
   test("can expose ChatGPT Codex models when explicit external auth exists", async () => {
-    const authPath = join(await mkdtemp(join(tmpdir(), "shimex-auth-")), "auth.json");
+    const root = await mkdtemp(join(tmpdir(), "shimex-auth-"));
+    const authPath = join(root, "auth.json");
+    const cachePath = join(root, "models_cache.json");
     await writeFile(authPath, JSON.stringify({ tokens: { access_token: "codex-token" } }));
+    await writeFile(cachePath, JSON.stringify({
+      models: [
+        { slug: "gpt-5.5", display_name: "GPT-5.5", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.4", display_name: "GPT-5.4", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.4-mini", display_name: "GPT-5.4-Mini", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.3-codex-spark", display_name: "GPT-5.3-Codex-Spark", context_window: 128000, input_modalities: ["text"] },
+        { slug: "codex-auto-review", display_name: "Codex Auto Review", context_window: 272000, input_modalities: ["text"] },
+      ],
+    }));
     const models = await discoverModels({
       providers: [{
         id: "chatgpt-codex",
         enabled: true,
         auth: { type: "external-codex-login", path: authPath },
         models: [],
-        options: {},
+        options: { models_cache_path: cachePath },
       }],
     });
-    assert.equal(models[0]?.slug, "gpt-5-5");
+    assert.deepEqual(models.map((model) => model.slug), ["gpt-5-5", "gpt-5-4", "gpt-5-4-mini", "gpt-5-3-codex-spark"]);
     assert.equal(models[0]?.providerDisplayName, "ChatGPT Codex");
   });
 });
