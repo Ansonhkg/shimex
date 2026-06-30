@@ -12,6 +12,10 @@
   <strong>A local provider gateway and managed companion for Codex Desktop.</strong>
 </p>
 
+<p align="center">
+  <a href="http://shimex.xyz/">shimex.xyz</a>
+</p>
+
 Shimex gives Codex Desktop a local OpenAI-compatible API gateway, connecting it to
 any LLM provider — Anthropic, DeepSeek, OpenAI, Ollama, LM Studio, Cloudflare Workers
 AI, Cursor, ChatGPT, ClinePass, and more. It creates an isolated managed copy of the
