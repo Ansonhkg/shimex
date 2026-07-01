@@ -9,17 +9,17 @@
 </p>
 
 <p align="center">
-  <strong>A local provider gateway and managed companion for Codex Desktop.</strong>
+  <strong>Use your own LLM providers in Codex Desktop, without modifying Codex.</strong>
 </p>
 
 <p align="center">
   <a href="http://shimex.xyz/">shimex.xyz</a>
 </p>
 
-Shimex gives Codex Desktop a local OpenAI-compatible API gateway, connecting it to
-any LLM provider — Anthropic, DeepSeek, OpenAI, Ollama, LM Studio, Cloudflare Workers
-AI, Cursor, ChatGPT, ClinePass, and more. It creates an isolated managed copy of the
-Codex app so your original installation stays untouched.
+Shimex creates a managed copy of Codex Desktop and points it at a local
+OpenAI-compatible gateway. That lets Codex use your configured providers —
+hosted APIs, local model servers, and external CLI sessions — while your
+original Codex app stays untouched.
 
 ---
 
@@ -42,17 +42,18 @@ Codex app so your original installation stays untouched.
 
 ## What is Shimex?
 
-Shimex is a **local Node.js daemon** that sits between Codex Desktop and your LLM
-providers. It:
+Shimex is a **local Node.js daemon** that lets Codex Desktop use your configured
+LLM providers — hosted APIs, local model servers, OpenAI-compatible endpoints,
+and external CLI sessions. It:
 
 - Copies your real Codex Desktop app into a managed `Shimex.app` (leaving the
   original untouched).
 - Generates an isolated Codex profile and model catalog that points at Shimex's
   local API server.
 - Exposes an OpenAI-compatible HTTP/SSE endpoint at `http://127.0.0.1:18765/v1`.
-- Routes requests to your configured providers — commercial APIs, local models,
-  or external CLI tools — normalising each provider's protocol behind a single
-  surface.
+- Routes requests to your configured providers — hosted APIs, local model
+  servers, OpenAI-compatible endpoints, or external CLI tools — normalising each
+  provider's protocol behind a single surface.
 - Discovers models dynamically (cache-backed) so your picker stays fresh without
   blocking startup.
 

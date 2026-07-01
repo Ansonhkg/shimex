@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shimex - Local Provider Gateway for Codex Desktop</title>
-  <meta name="description" content="Shimex is a local provider gateway for Codex Desktop. Use ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers from one managed Codex app.">
+  <title>Shimex — Use Any LLM Provider in Codex Desktop</title>
+  <meta name="description" content="Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway. Your original Codex app stays untouched.">
   <meta name="application-name" content="Shimex">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#111111">
@@ -14,8 +14,8 @@
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shimex.xyz/">
-  <meta property="og:title" content="Shimex - Local Provider Gateway for Codex Desktop">
-  <meta property="og:description" content="Route Codex Desktop through ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers without modifying your original Codex app.">
+  <meta property="og:title" content="Shimex — Use Any LLM Provider in Codex Desktop">
+  <meta property="og:description" content="Route Codex Desktop through your configured local, hosted, or CLI-backed LLM providers without modifying your original Codex app.">
   <meta property="og:image" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:secure_url" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:type" content="image/png">
@@ -23,8 +23,8 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Shimex - Local Provider Gateway for Codex Desktop">
-  <meta name="twitter:description" content="Use more model providers from Codex Desktop through one local OpenAI-compatible gateway.">
+  <meta name="twitter:title" content="Shimex — Use Any LLM Provider in Codex Desktop">
+  <meta name="twitter:description" content="Use your own local, hosted, or CLI-backed LLM providers from Codex Desktop through one local OpenAI-compatible gateway.">
   <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
   <meta name="twitter:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <script type="application/ld+json">
@@ -36,7 +36,7 @@
           "@id": "https://shimex.xyz/#website",
           "name": "Shimex",
           "url": "https://shimex.xyz/",
-          "description": "A local provider gateway and managed companion for Codex Desktop.",
+          "description": "Use your configured LLM providers in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
           "inLanguage": "en"
         },
         {
@@ -47,7 +47,7 @@
           "operatingSystem": "macOS",
           "url": "https://shimex.xyz/",
           "image": "https://shimex.xyz/social-card.png",
-          "description": "Shimex gives Codex Desktop a local OpenAI-compatible API gateway for ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, and other providers.",
+          "description": "Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway.",
           "offers": {
             "@type": "Offer",
             "price": "0",
@@ -59,10 +59,10 @@
           "@id": "https://shimex.xyz/#site-navigation",
           "name": "Shimex sections",
           "itemListElement": [
-            { "@type": "SiteNavigationElement", "position": 1, "name": "Pricing", "url": "https://shimex.xyz/#pricing" },
-            { "@type": "SiteNavigationElement", "position": 2, "name": "CLI", "url": "https://shimex.xyz/#cli" },
+            { "@type": "SiteNavigationElement", "position": 1, "name": "Install", "url": "https://shimex.xyz/#install" },
+            { "@type": "SiteNavigationElement", "position": 2, "name": "Providers", "url": "https://shimex.xyz/#providers" },
             { "@type": "SiteNavigationElement", "position": 3, "name": "Documentation", "url": "https://shimex.xyz/#documentation" },
-            { "@type": "SiteNavigationElement", "position": 4, "name": "Providers", "url": "https://shimex.xyz/#providers" },
+            { "@type": "SiteNavigationElement", "position": 4, "name": "Free", "url": "https://shimex.xyz/#free" },
             { "@type": "SiteNavigationElement", "position": 5, "name": "FAQ", "url": "https://shimex.xyz/#faq" }
           ]
         },
@@ -289,37 +289,37 @@
     Shimex
   </a>
   <span class="links">
-    <a href="#pricing">Pricing</a>
-    <a href="#cli">CLI</a>
+    <a href="#install">Install</a>
+    <a href="#providers">Providers</a>
     <a href="#documentation">Docs</a>
     <a href="#faq">FAQ</a>
   </span>
 </nav>
 
 <header class="hero">
-  <h1>Shimex - local provider gateway for Codex Desktop.</h1>
+  <h1>Use any LLM provider in Codex Desktop &mdash; without modifying Codex.</h1>
   <p class="tagline">
-    Shimex sits between Codex Desktop and any LLM provider &mdash; Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, ClinePass &mdash; behind an OpenAI-compatible HTTP daemon. Your original Codex install is never modified.
+    Shimex creates a managed Codex Desktop app and routes it through your configured providers &mdash; hosted APIs, local model servers, and external CLI sessions &mdash; using a local OpenAI-compatible gateway. Your original Codex install stays untouched.
   </p>
   <div class="cta-row">
     <a class="btn primary" href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub &rarr;</a>
   </div>
   <div class="sitelinks" aria-label="Popular Shimex pages">
-    <a class="sitelink" href="#pricing">
-      <strong>Pricing</strong>
-      <span>Free local gateway. Bring your own provider keys or local models.</span>
+    <a class="sitelink" href="#install">
+      <strong>Install</strong>
+      <span>Clone, configure <code>.env</code>, and launch the managed Shimex app.</span>
     </a>
-    <a class="sitelink" href="#cli">
-      <strong>CLI</strong>
-      <span>Install, sync, start, stop, and inspect Shimex from npm scripts.</span>
+    <a class="sitelink" href="#providers">
+      <strong>Providers</strong>
+      <span>Bring hosted APIs, local models, OpenAI-compatible endpoints, and CLI-backed sessions.</span>
     </a>
     <a class="sitelink" href="#documentation">
       <strong>Documentation</strong>
-      <span>How Shimex manages Codex Desktop, providers, models, and secrets.</span>
+      <span>Understand managed app copies, model catalogs, routing, and secrets.</span>
     </a>
     <a class="sitelink" href="#faq">
       <strong>FAQ</strong>
-      <span>Answers about app safety, supported providers, and API keys.</span>
+      <span>App safety, supported providers, API keys, and local data.</span>
     </a>
   </div>
 </header>
@@ -331,27 +331,29 @@
 
 <section id="providers">
   <h2>What it does</h2>
+  <p>Codex Desktop can only use the providers it knows about. Shimex gives it a local OpenAI-compatible gateway and generated model catalog so your own providers appear in the picker.</p>
   <ul>
-    <li>Copies your real <code>/Applications/Codex.app</code> into a managed <code>Shimex.app</code> with an isolated profile and model catalog. The original Codex app stays untouched.</li>
-    <li>Exposes an OpenAI-compatible gateway at <code>http://127.0.0.1:18765/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
+    <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
+    <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
+    <li>Run a local OpenAI-compatible gateway at <code>http://127.0.0.1:18765/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
     <li>Normalises Anthropic Messages, OpenAI Responses, OpenAI Chat, and Cursor Composer behind the same inbound shape. Streaming SSE everywhere; non-streaming upstreams are wrapped in a single-chunk SSE so the consumer always sees SSE.</li>
-    <li>Discovers models dynamically with a written cache. Catalog reads don&rsquo;t require a live network call; refresh is best-effort on startup.</li>
+    <li>Discovers models dynamically with a written cache so normal catalog reads don&rsquo;t require a live network call; refresh is best-effort on startup.</li>
     <li>Holds capabilities to what each provider can actually do. Text-only models reject image input with a typed error instead of dropping parts silently.</li>
-    <li>Keeps secrets out of source. API keys live in the git-ignored <code>.env</code> and are referenced via <code>auth: { type: env, name: … }</code>.</li>
+    <li>Keeps secrets out of source. API keys live in the git-ignored <code>.env</code>; <code>shimex.yml</code> only references environment variable names.</li>
   </ul>
 </section>
 
-<section id="pricing">
-  <h2>Pricing</h2>
-  <p>Shimex is a local gateway. It does not add a usage meter or hosted subscription layer.</p>
+<section id="free">
+  <h2>Free</h2>
+  <p>Shimex is free and runs on your machine. Bring your own provider keys, local models, or external CLI sessions.</p>
   <div class="split-list">
     <div class="mini-card">
       <h3>Free local app</h3>
-      <p>Run the Shimex daemon and managed Codex app on your machine.</p>
+      <p>Run Shimex and the managed Codex app locally. There is no hosted subscription or Shimex usage meter.</p>
     </div>
     <div class="mini-card">
-      <h3>Bring your provider</h3>
-      <p>Use your own API keys, ClinePass session, LM Studio server, Ollama models, or other configured endpoints.</p>
+      <h3>Bring your own providers</h3>
+      <p>Use your own API keys, Ollama models, LM Studio server, ClinePass session, Cursor session, or OpenAI-compatible endpoint.</p>
     </div>
   </div>
 </section>
