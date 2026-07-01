@@ -107,6 +107,47 @@ describe("Provider request adapters", () => {
     assert.equal(upstreamBody.tools[4].function.parameters.properties.threadId.type, "string");
   });
 
+  test("maps freeform apply_patch to a required patch argument for chat endpoints", async () => {
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "lm-studio",
+        endpoint: "http://127.0.0.1:1234/v1",
+        models: [modelConfig({ slug: "lm-local", upstreamModel: "local-upstream" })],
+      }),
+      "/v1/responses",
+      {
+        model: "lm-local",
+        input: "edit a file",
+        stream: false,
+        tools: [{
+          type: "custom",
+          name: "apply_patch",
+          description: "Apply a patch to files.",
+          format: { type: "grammar", syntax: "lark", definition: "start: /.+/" },
+        }],
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            created: 123,
+            model: "local-upstream",
+            choices: [{ message: { role: "assistant", content: "done" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.equal(upstreamBody.tools[0].function.name, "apply_patch");
+    assert.deepEqual(upstreamBody.tools[0].function.parameters.required, ["patch"]);
+    assert.equal(upstreamBody.tools[0].function.parameters.properties.patch.type, "string");
+    assert.equal(upstreamBody.tools[0].function.parameters.additionalProperties, false);
+  });
+
   test("converts Responses function call outputs into valid chat tool turns", async () => {
     const calls = [];
     const result = await handleProviderModelRequest(

@@ -148,6 +148,46 @@ describe("ClinePass adapter", () => {
     assert.equal(payload.output[0].namespace, "codex_app");
   });
 
+  test("maps freeform apply_patch to a required patch argument", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-glm-5-2",
+        input: "edit a file",
+        stream: false,
+        tools: [{
+          type: "custom",
+          name: "apply_patch",
+          description: "Apply a patch to files.",
+          format: { type: "grammar", syntax: "lark", definition: "start: /.+/" },
+        }],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_1",
+              created: 123,
+              choices: [{ message: { role: "assistant", content: "ready" } }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[1].init.body);
+    assert.equal(upstreamBody.tools[0].function.name, "apply_patch");
+    assert.deepEqual(upstreamBody.tools[0].function.parameters.required, ["patch"]);
+    assert.equal(upstreamBody.tools[0].function.parameters.properties.patch.type, "string");
+  });
+
   test("streams chat chunks as Responses events", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const result = await handleClinePassModelRequest(

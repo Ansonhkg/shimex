@@ -731,10 +731,33 @@ function responsesToolsToChatTools(tools) {
       function: {
         name: tool.name || tool.function?.name || "",
         description: tool.description || tool.function?.description || "",
-        parameters: objectParametersSchema(tool.parameters || tool.inputSchema || tool.function?.parameters),
+        parameters: chatToolParameters(tool),
       },
     }))
     .filter((tool) => tool.function.name);
+}
+
+function chatToolParameters(tool) {
+  const name = tool?.name || tool?.function?.name || "";
+  const schema = tool?.parameters || tool?.inputSchema || tool?.function?.parameters;
+  if (name === "apply_patch" && !objectProperties(schema?.properties).patch) {
+    return applyPatchParametersSchema();
+  }
+  return objectParametersSchema(schema);
+}
+
+function applyPatchParametersSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      patch: {
+        type: "string",
+        description: "Complete apply_patch payload, starting with *** Begin Patch and ending with *** End Patch.",
+      },
+    },
+    required: ["patch"],
+  };
 }
 
 function objectParametersSchema(schema) {
