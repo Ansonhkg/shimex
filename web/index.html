@@ -8,6 +8,7 @@
   <meta name="application-name" content="Shimex">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#111111">
+  <meta name="google-site-verification" content="tlIW5u9-BQqIZ14AE7OrquQpdGmTDkCd4uFBjd7MX2M">
   <link rel="canonical" href="https://shimex.xyz/">
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="apple-touch-icon" href="icon.png">
@@ -381,6 +382,7 @@ npm run shimex -- models list                  # discovered models</code></pre>
 <section id="documentation">
   <h2>Documentation</h2>
   <p>Shimex is configured by <code>shimex.yml</code> and a local git-ignored <code>.env</code>. The managed app copy, isolated Codex profile, model catalog, and local gateway are all created from those files.</p>
+  <p>Want to add a provider? Point your coding agent at the <a href="https://github.com/Ansonhkg/shimex/blob/main/AGENTS.md#provider-rules" rel="noopener">provider rules</a> or the <a href="https://github.com/Ansonhkg/shimex#adding-a-provider" rel="noopener">Adding a Provider</a> docs. The required path is explicit: add the provider module, manifest, adapter, registry entries, <code>shimex.yml</code> example, and tests.</p>
   <div class="split-list">
     <div class="mini-card">
       <h3>Managed Codex app</h3>
@@ -389,6 +391,10 @@ npm run shimex -- models list                  # discovered models</code></pre>
     <div class="mini-card">
       <h3>Provider adapters</h3>
       <p>Adapters translate provider-specific request, response, model, and streaming behavior into Codex-ready shapes.</p>
+    </div>
+    <div class="mini-card">
+      <h3>Agent-friendly provider docs</h3>
+      <p>If Shimex does not support a provider yet, give your agent the provider docs and the Shimex provider rules. The architecture tells it exactly where each change belongs.</p>
     </div>
   </div>
 </section>
@@ -406,6 +412,10 @@ npm run shimex -- models list                  # discovered models</code></pre>
   <div class="faq-item">
     <h3>Where do API keys live?</h3>
     <p>Provider secrets live in a local <code>.env</code> file that is ignored by git. <code>shimex.yml</code> references those secrets by environment variable name.</p>
+  </div>
+  <div class="faq-item">
+    <h3>How do I update when Codex Desktop releases a new version?</h3>
+    <p>Just run <code>npm run stop:all &amp;&amp; npm start</code>. Shimex re-copies the upstream Codex app into the managed <code>Shimex.app</code>, reapplies patches, and restarts the gateway with the latest version.</p>
   </div>
 </section>
 

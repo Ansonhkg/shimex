@@ -316,6 +316,17 @@ npm run shimex -- providers list   # Configured providers
 npm run shimex -- models list      # Discovered models
 ```
 
+### Updating
+
+When Codex Desktop releases an update, Shimex picks it up automatically:
+
+```bash
+npm run stop:all && npm start
+```
+
+Shimex re-copies the upstream Codex app into the managed `Shimex.app`, reapplies patches, and restarts the gateway with the latest version.
+
+
 ---
 
 ## Configuration
