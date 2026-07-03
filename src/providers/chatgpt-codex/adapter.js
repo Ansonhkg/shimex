@@ -7,6 +7,8 @@ import {
   responseToChatCompletion,
   rewriteResponseModel,
 } from "../openai-compatible/translate.js";
+import { loadAuthStore } from "./index.js";
+import { resolveProfileForSlug, authStorePath } from "./authStore.js";
 
 const CHATGPT_CODEX_BASE = "https://chatgpt.com/backend-api/codex";
 
@@ -15,14 +17,19 @@ export async function handleChatGptCodexRequest(route, pathname, body, options =
   if (unsupported) {
     return unsupported;
   }
+  const rootConfig = options.rootConfig || route.rootConfig || null;
+  const resolved = await resolveAuthForRoute(route, rootConfig, options);
+  if (!resolved.ok) {
+    return resolved.result;
+  }
   if (pathname === "/v1/chat/completions") {
     const request = chatToResponsesRequest(body, route.model.upstreamModel);
     return await postChatGpt(route, "/responses", request, {
       asChat: true,
       requestedModel: route.model.slug,
+      profile: resolved.profile,
       headers: options.headers,
       fetch: options.fetch || fetch,
-      authPath: options.authPath,
     });
   }
   if (pathname === "/v1/responses" || pathname === "/v1/responses/compact") {
@@ -30,36 +37,21 @@ export async function handleChatGptCodexRequest(route, pathname, body, options =
     return await postChatGpt(route, suffix, { ...body, model: route.model.upstreamModel }, {
       asChat: false,
       requestedModel: route.model.slug,
+      profile: resolved.profile,
       headers: options.headers,
       fetch: options.fetch || fetch,
-      authPath: options.authPath,
     });
   }
   return null;
 }
 
 async function postChatGpt(route, suffix, body, options) {
-  const auth = await readCodexAuth({ authPath: options.authPath });
-  if (!auth) {
-    return jsonResult({
-      error: {
-        message: "Codex auth is not available. Run Codex login in the original app or CLI, then retry.",
-        type: "shimex_auth_unavailable",
-      },
-    }, 401);
-  }
   const upstreamBody = suffix.endsWith("/compact") ? { ...body, stream: false } : body;
   const upstream = await options.fetch(`${CHATGPT_CODEX_BASE}${suffix}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${auth.accessToken}`,
-      "content-type": "application/json",
-      accept: upstreamBody.stream ? "text/event-stream" : "application/json",
-      "openai-beta": "responses=2026-02-06",
-      originator: "codex_cli_rs",
-      "chatgpt-account-id": auth.accountId,
-      session_id: options.headers?.get?.("session_id") || options.headers?.session_id || "",
-      "user-agent": "shimex",
+      ...buildUpstreamHeaders(options.profile, upstreamBody.stream),
+      session_id: readSessionId(options.headers),
     },
     body: JSON.stringify(upstreamBody),
   });
@@ -83,6 +75,80 @@ async function postChatGpt(route, suffix, body, options) {
     return jsonResult(responseToChatCompletion(payload, options.requestedModel));
   }
   return jsonResult(payload);
+}
+
+function buildUpstreamHeaders(profile, stream) {
+  return {
+    authorization: `Bearer ${profile.accessToken}`,
+    "content-type": "application/json",
+    accept: stream ? "text/event-stream" : "application/json",
+    "openai-beta": "responses=2026-02-06",
+    originator: "codex_cli_rs",
+    "chatgpt-account-id": profile.accountId || "",
+    "user-agent": "shimex",
+  };
+}
+
+async function resolveAuthForRoute(route, rootConfig, options) {
+  const providerConfig = route.providerConfig;
+  const store = shouldUseOnlyLegacyAuth(providerConfig, options)
+    ? { profiles: {}, defaultProfile: "" }
+    : await loadAuthStore(providerConfig, rootConfig);
+  if (route.model.profile && store.profiles[route.model.profile]) {
+    const profile = store.profiles[route.model.profile];
+    if (profile.accessToken) {
+      return { ok: true, profile };
+    }
+  }
+  const resolved = resolveProfileForSlug(store, route.model.slug);
+  if (resolved && resolved.profile.accessToken) {
+    return { ok: true, profile: resolved.profile };
+  }
+  const legacyPath = providerConfig.options?.auth_path || providerConfig.options?.authPath;
+  const legacy = await readCodexAuth({ authPath: legacyPath || options.authPath });
+  if (legacy && legacy.accessToken) {
+    return {
+      ok: true,
+      profile: {
+        name: "legacy",
+        label: "legacy ~/.codex/auth.json",
+        accessToken: legacy.accessToken,
+        accountId: legacy.accountId || "",
+        available: true,
+        createdAt: new Date(0).toISOString(),
+        updatedAt: "",
+      },
+    };
+  }
+  return missingAuthResult(
+    route.model.profile
+      ? `Codex auth profile "${route.model.profile}" is unavailable. Re-add it with \`shimex codex-auth add ${route.model.profile}\`.`
+      : "Codex auth is not available. Add a profile with `shimex codex-auth add <name>` or paste ~/.codex/auth.json into one.",
+  );
+}
+
+function shouldUseOnlyLegacyAuth(providerConfig, options) {
+  if (providerConfig.options?.auths_path || providerConfig.options?.authsPath) {
+    return false;
+  }
+  return Boolean(options.authPath || providerConfig.options?.auth_path || providerConfig.options?.authPath);
+}
+
+function missingAuthResult(message) {
+  return {
+    ok: false,
+    result: jsonResult({
+      error: { message, type: "shimex_auth_unavailable" },
+    }, 401),
+  };
+}
+
+function readSessionId(headers) {
+  if (!headers) {
+    return "";
+  }
+  const lookup = headers.get ? headers.get.bind(headers) : (name) => headers[name] || "";
+  return lookup("session_id") || lookup("sessionId") || "";
 }
 
 async function passThroughResponseEvents(response, upstream, requestedModel) {

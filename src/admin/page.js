@@ -1,3 +1,5 @@
+import { codexAuthsCard, codexAuthsRuntimeHelpers } from "./codexAuthsCard.js";
+
 export function adminPage() {
   return [
     "<!doctype html><html lang=\"en\"><head>",
@@ -179,6 +181,8 @@ function styles() {
     .badge.image { color: #b48cff; border-color: rgba(180,140,255,0.35); }
     .badge.text { color: var(--muted); }
     .badge.provider { color: var(--accent); border-color: rgba(106,166,255,0.35); }
+    .badge.ok { color: var(--ok); border-color: rgba(47,191,113,0.35); }
+    .badge.danger { color: var(--danger); border-color: rgba(229,72,77,0.5); }
 
     .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
     .skeleton { background: linear-gradient(90deg, var(--panel-2) 25%, var(--panel) 50%, var(--panel-2) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; height: 16px; }
@@ -301,6 +305,7 @@ function main() {
             </table>
           </div>
         </div>
+        ${codexAuthsCard()}
       </section>
     </div>
   `;
@@ -522,7 +527,10 @@ function runtime() {
     els.search.addEventListener("input", renderModels);
     els.providerFilter.addEventListener("change", renderModels);
     els.modalityFilter.addEventListener("change", renderModels);
+
+    ${codexAuthsRuntimeHelpers()}
     els.refresh.addEventListener("click", () => load().then(() => toast("Refreshed", "Doctor and model list updated.", "ok")));
+    initCodexAuths();
     load();
   `;
 }

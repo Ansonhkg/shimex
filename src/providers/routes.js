@@ -11,7 +11,7 @@ export async function resolveModelRoute(config, requestedModel) {
   if (!providerConfig || !provider) {
     return null;
   }
-  return { model, provider, providerConfig };
+  return { model, provider, providerConfig, rootConfig: config };
 }
 
 export function validateModelInput(route, body) {

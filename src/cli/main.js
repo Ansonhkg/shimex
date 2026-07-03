@@ -10,6 +10,17 @@ import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { installCodexClient, openCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { resolveCodexPaths } from "../clients/codex/paths.js";
 import { clearServerPid, serverStatus, stopServer, writeServerPid } from "../server/process.js";
+import { loadAuthStore } from "../providers/chatgpt-codex/index.js";
+import {
+  authStorePath,
+  listProfileSummaries,
+  maskAccountId,
+  removeProfile,
+  setDefaultProfile,
+  upsertProfile,
+  writeCodexAuths,
+} from "../providers/chatgpt-codex/authStore.js";
+import { expandHome } from "../core/paths.js";
 
 const commands = {
   help: runHelp,
@@ -27,6 +38,7 @@ const commands = {
   models: runModels,
   catalog: runCatalog,
   server: runServer,
+  "codex-auth": runCodexAuth,
 };
 
 async function main(argv) {
@@ -55,21 +67,26 @@ start here:
   shimex server start [--port <port>]
 
 commands:
-  help                 Show help
-  version              Show version
-  start                Prepare and open the managed Shimex.app
-  dev                  Run the server in the foreground and open Shimex.app
-  status               Show Shimex backend status
-  stop                 Stop the detached Shimex backend
-  stop-all             Stop the backend and quit the managed Shimex.app
-  doctor               Check Codex Desktop prerequisite and Shimex config
-  install              Plan managed Shimex.app install; use --apply to write
-  sync                 Plan managed Shimex.app resync; use --apply to write
-  open                 Open the managed Shimex.app
-  providers list       List registered providers
-  models list          List discovered models
-  catalog print        Print the generated Codex model catalog
-  server start         Start the local HTTP/admin server`);
+  help                       Show help
+  version                    Show version
+  start                      Prepare and open the managed Shimex.app
+  dev                        Run the server in the foreground and open Shimex.app
+  status                     Show Shimex backend status
+  stop                       Stop the detached Shimex backend
+  stop-all                   Stop the backend and quit the managed Shimex.app
+  doctor                     Check Codex Desktop prerequisite and Shimex config
+  install                    Plan managed Shimex.app install; use --apply to write
+  sync                       Plan managed Shimex.app resync; use --apply to write
+  open                       Open the managed Shimex.app
+  providers list             List registered providers
+  models list                List discovered models
+  catalog print              Print the generated Codex model catalog
+  server start               Start the local HTTP/admin server
+  codex-auth list            List chatgpt-codex auth profiles
+  codex-auth add <name>      Paste a chatgpt-codex auth JSON (path, "-" for stdin)
+  codex-auth remove <name>   Remove a chatgpt-codex auth profile
+  codex-auth use <name>      Set the default chatgpt-codex auth profile
+`);
   return 0;
 }
 
@@ -230,6 +247,113 @@ async function runServer(args) {
   await server.closed;
   await clearServerPid(config, process.pid);
   return 0;
+}
+
+async function runCodexAuth(args) {
+  const subcommand = args[0];
+  if (!subcommand || !["list", "add", "remove", "use"].includes(subcommand)) {
+    console.error("usage: shimex codex-auth <list|add|remove|use> [args]");
+    return 2;
+  }
+  const config = await loadShimexConfig();
+  const codexProviderConfig = config.providers.find((provider) => provider.id === "chatgpt-codex") || null;
+  const store = await loadAuthStore(codexProviderConfig || { id: "chatgpt-codex", options: {} }, config);
+  const path = authStorePath(codexProviderConfig || { id: "chatgpt-codex", options: {} }, config);
+  if (subcommand === "list") {
+    const summaries = listProfileSummaries(store);
+    console.log(`path: ${path}`);
+    if (!summaries.length) {
+      console.log("(no profiles — shimex will fall back to a single auth at ~/.codex/auth.json when present)");
+      return 0;
+    }
+    for (const summary of summaries) {
+      const marker = summary.isDefault ? "*" : " ";
+      const account = summary.accountMasked ? ` account=${summary.accountMasked}` : "";
+      const label = summary.label && summary.label !== summary.name ? ` label=${summary.label}` : "";
+      console.log(`${marker} ${summary.name}${account}${label}`);
+    }
+    return 0;
+  }
+  if (subcommand === "add") {
+    const name = args[1];
+    const source = args[2];
+    if (!name) {
+      console.error("usage: shimex codex-auth add <name> [<auth.json-path>|-]");
+      return 2;
+    }
+    const payloadText = await readCodexAuthInput(source);
+    let payload;
+    try {
+      payload = JSON.parse(payloadText);
+    } catch (error) {
+      console.error(`Could not parse auth JSON: ${String(error?.message || error)}`);
+      return 1;
+    }
+    let nextStore;
+    let profile;
+    try {
+      const result = upsertProfile(store, name, payload);
+      nextStore = { profiles: result.profiles, defaultProfile: result.defaultProfile };
+      profile = result.profile;
+    } catch (error) {
+      console.error(String(error?.message || error));
+      return 1;
+    }
+    await writeCodexAuths(path, nextStore);
+    console.log(`added ${profile.name} (account ${maskAccountId(profile.accountId) || "?"}) to ${path}`);
+    return 0;
+  }
+  if (subcommand === "remove") {
+    const name = args[1];
+    if (!name) {
+      console.error("usage: shimex codex-auth remove <name>");
+      return 2;
+    }
+    const result = removeProfile(store, name);
+    await writeCodexAuths(path, { profiles: result.profiles, defaultProfile: result.defaultProfile });
+    if (!result.removed) {
+      console.error(`profile "${name}" does not exist`);
+      return 1;
+    }
+    console.log(`removed ${result.removed}`);
+    return 0;
+  }
+  if (subcommand === "use") {
+    const name = args[1];
+    if (!name) {
+      console.error("usage: shimex codex-auth use <name>");
+      return 2;
+    }
+    const next = setDefaultProfile(store, name);
+    await writeCodexAuths(path, { profiles: next.profiles, defaultProfile: next.defaultProfile });
+    if (!next.changed) {
+      console.log(`default already ${next.defaultProfile || "(none)"}`);
+      return 0;
+    }
+    console.log(`default -> ${next.defaultProfile}`);
+    return 0;
+  }
+  return 2;
+}
+
+async function readCodexAuthInput(source) {
+  const fallback = expandHome("~/.codex/auth.json");
+  const target = source === "-" ? null : (source ? expandHome(source) : fallback);
+  if (!target) {
+    return await readAllStdin();
+  }
+  const text = await readFile(target, "utf8");
+  return text;
+}
+
+function readAllStdin() {
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { buffer += chunk; });
+    process.stdin.on("end", () => resolve(buffer));
+    process.stdin.on("error", reject);
+  });
 }
 
 async function stopManagedAppProcesses(managedAppPath) {

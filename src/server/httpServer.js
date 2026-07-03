@@ -1,18 +1,22 @@
 import { createServer as createHttpServer } from "node:http";
 import { adminPage } from "../admin/page.js";
+import { deviceLoginPage } from "../admin/deviceLoginPage.js";
+import { getShimexCodexDeviceLogin } from "../providers/chatgpt-codex/deviceLogin.js";
 import { discoverModels, refreshProviderModelCaches } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { installCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { handleProviderModelRequest } from "../providers/adapter.js";
 import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
+import { createCodexAuthRoutes } from "./codexAuthRoutes.js";
 
 export async function createServer(config) {
   await refreshProviderModelCaches(config);
+  const codexAuthRoutes = createCodexAuthRoutes(config);
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);
-      const result = await routeRequest(config, request, url, { stop: () => server.close() });
+      const result = await routeRequest(config, request, url, { stop: () => server.close(), codexAuthRoutes });
       writeResponse(response, result);
     } catch (error) {
       writeResponse(response, json({ error: String(error?.message || error) }, { status: 500 }));
@@ -59,6 +63,23 @@ async function routeRequest(config, request, url, control = {}) {
   }
   if (method === "GET" && pathname === "/codex/model-catalog.json") {
     return json(generateCodexCatalog(await discoverModels(config)));
+  }
+  if (pathname === "/api/codex-auths" || pathname.startsWith("/api/codex-auths/")) {
+    const result = await control.codexAuthRoutes?.route(request, url);
+    if (result) {
+      return result;
+    }
+  }
+  if (method === "GET" && pathname === "/admin/codex-auth/device") {
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return html("<!doctype html><meta charset=utf-8><title>Codex device login</title><p>Missing device login id. <a href='/admin'>Back</a></p>");
+    }
+    const login = getShimexCodexDeviceLogin(id);
+    if (!login) {
+      return html("<!doctype html><meta charset=utf-8><title>Codex device login expired</title><p>This device login was cancelled or expired. <a href='/admin'>Back to admin</a></p>");
+    }
+    return html(deviceLoginPage(login, { apiBase: "" }));
   }
   if (method === "POST" && pathname === "/api/install") {
     return json(await installCodexClient(config, { apply: url.searchParams.get("apply") === "1" }));

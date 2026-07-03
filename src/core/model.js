@@ -23,6 +23,8 @@ export function normalizeModel(providerId, raw, index = 0, providerDisplayName =
     inputModalities,
     reasoningLevel: raw.reasoningLevel || raw.reasoning_level || "medium",
     priority: raw.priority || Math.max(1, 1000 - index),
+    profile: typeof raw.profile === "string" ? raw.profile : "",
+    accountId: typeof raw.accountId === "string" ? raw.accountId : "",
     raw,
   };
 }

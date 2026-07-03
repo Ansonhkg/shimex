@@ -140,7 +140,8 @@ src/
 | Cloudflare Workers AI | `cloudflare-workers-ai` | REST | Account-scoped |
 | Ollama | `ollama` | OpenAI-compatible | Local models |
 | LM Studio | `lm-studio` | OpenAI-compatible | Local models |
-| ChatGPT / Codex | `chatgpt-codex` | Passthrough | Disabled by default; needs external auth |
+| ChatGPT / Codex | `chatgpt-codex` | Passthrough | **Multi-account.** Each ChatGPT/Codex login becomes a profile (e.g. `personal-gpt-5-5`, `work-gpt-5-5`) in the picker. |
+
 | Cursor Composer | `cursor-composer` | Passthrough | Text-only bridge via `cursor-agent` |
 | ClinePass | `cline-pass` | Passthrough | External CLI login |
 | Auto Router | `auto-router` | Virtual | Classifier-based routing |
@@ -400,6 +401,51 @@ For providers with a standard OpenAI-compatible chat endpoint, use the shared
 `openai-compatible` provider shape. Do not create a bespoke provider unless the
 upstream has genuinely different auth, discovery, or request behavior.
 
+### Multi-Account ChatGPT / Codex Profiles
+
+Shimex stores ChatGPT / Codex logins in a centralised, gitignored JSON file at
+`~/.shimex/codex-auths.json`. Each profile has a name, the OAuth access + refresh
+tokens, and the `chatgpt_account_id` extracted from the access-token JWT.
+
+Three ways to add a profile:
+
+| Way | When to use |
+|---|---|
+| **Sign in with OpenAI Codex** (admin UI) | The server can reach `auth.openai.com`. A new tab opens, you confirm on chatgpt.com, and Shimex polls until the access/refresh tokens land. |
+| **Paste OAuth JSON** (admin UI or `codex-auth add`) | Headless servers, or you already have tokens exported from another machine. |
+| **Import `~/.codex/auth.json`** | The legacy single-account mode — Shimex reads the file from the original Codex app install. |
+
+Each profile surfaces in the Codex picker as `profile-model` slugs (for example,
+`personal-gpt-5-5`, `work-gpt-5-5`). Inside Shimex, picking `personal-gpt-5-5`
+authenticates upstream requests with the personal access token + `chatgpt-account-id`,
+picking `work-gpt-5-5` does the same with the work token. Legacy single-account
+mode still works — Shimex falls back to `~/.codex/auth.json` when no profile is
+configured.
+
+CLI:
+
+```bash
+npm run shimex -- codex-auth list                            # show profiles + account ids
+npm run shimex -- codex-auth add personal ~/.codex/auth.json  # import from another Codex install
+npm run shimex -- codex-auth add work path/to/work.json       # paste JSON from elsewhere
+npm run shimex -- codex-auth use personal                     # set default profile
+npm run shimex -- codex-auth remove work                      # delete a profile
+```
+
+HTTP:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET`   | `/api/codex-auths` | List all profiles (with masked account ids). |
+| `POST`  | `/api/codex-auths` | Add or update a profile. Body: `{ name, auth_json?, label?, note? }`. |
+| `POST`  | `/api/codex-auths/{name}/use` | Set a profile as default. |
+| `DELETE`| `/api/codex-auths/{name}` | Disconnect (remove) a profile. |
+| `POST`  | `/api/codex-auths/start-device` | Begin the OAuth device-code flow. Body: `{ profile }`. |
+| `GET`   | `/api/codex-auths/device/{id}` | Poll device-flow status. |
+| `POST`  | `/api/codex-auths/device/{id}/complete` | Commit saved credentials. |
+| `DELETE`| `/api/codex-auths/device/{id}` | Cancel an in-flight device flow. |
+| `GET`   | `/api/codex-auths/{name}/credits` | Probe `chatgpt.com/backend-api/wham/rate-limit-reset-credentials` for the remaining `available_count` / `total_earned_count` / credited expiry. |
+
 ### Model Discovery
 
 Configured `models` entries are always used as written. Providers can also
@@ -483,6 +529,12 @@ npm run shimex -- providers list       # List configured providers
 npm run shimex -- models list          # List discovered models
 npm run shimex -- server start         # Start the gateway server
 npm run shimex -- server stop          # Stop the gateway server
+
+# ChatGPT/Codex multi-account management
+npm run shimex -- codex-auth list
+npm run shimex -- codex-auth add <name> [<token.json-path>|-]
+npm run shimex -- codex-auth use <name>
+npm run shimex -- codex-auth remove <name>
 ```
 
 ### Make Targets
