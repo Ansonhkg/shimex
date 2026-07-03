@@ -6,6 +6,7 @@ import { cloudflareWorkersAiProvider } from "./cloudflare-workers-ai/index.js";
 import { cursorComposerProvider } from "./cursor-composer/index.js";
 import { deepSeekProvider } from "./deepseek/index.js";
 import { lmStudioProvider } from "./lm-studio/index.js";
+import { localRouterProvider } from "./local-router/index.js";
 import { ollamaProvider } from "./ollama/index.js";
 import { openaiCompatibleProvider } from "./openai-compatible/index.js";
 import { openaiResponsesProvider } from "./openai-responses/index.js";
@@ -19,6 +20,7 @@ const providers = [
   cursorComposerProvider,
   deepSeekProvider,
   lmStudioProvider,
+  localRouterProvider,
   ollamaProvider,
   openaiCompatibleProvider,
   openaiResponsesProvider,
