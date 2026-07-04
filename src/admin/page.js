@@ -1,4 +1,5 @@
 import { codexAuthsCard, codexAuthsRuntimeHelpers } from "./codexAuthsCard.js";
+import { clineAuthsCard, clineAuthsRuntimeHelpers } from "./clineAuthsCard.js";
 
 export function adminPage() {
   return [
@@ -180,9 +181,223 @@ function styles() {
     }
     .badge.image { color: #b48cff; border-color: rgba(180,140,255,0.35); }
     .badge.text { color: var(--muted); }
-    .badge.provider { color: var(--accent); border-color: rgba(106,166,255,0.35); }
+    .badge.provider { color: var(--provider-color, var(--accent)); border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 45%, transparent); background: color-mix(in srgb, var(--provider-color, var(--accent)) 12%, transparent); }
     .badge.ok { color: var(--ok); border-color: rgba(47,191,113,0.35); }
     .badge.danger { color: var(--danger); border-color: rgba(229,72,77,0.5); }
+
+    .auth-panel {
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .auth-panel .head {
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      margin: 0;
+      padding: 16px 20px;
+      background: color-mix(in srgb, var(--panel-2) 60%, var(--panel));
+    }
+    .auth-panel h2 {
+      color: var(--text);
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      font-weight: 600;
+    }
+    .auth-panel h2 .auth-count {
+      color: var(--muted);
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .auth-panel .meta { font-size: 12px; }
+    .auth-panel .meta code { font-size: 11px; }
+
+    .auth-refresh {
+      align-items: center; background: var(--panel-2); border: 1px solid var(--border-strong);
+      border-radius: 7px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 6px;
+      font-size: 12px; font-weight: 600; padding: 5px 11px; transition: all 0.15s ease;
+    }
+    .auth-refresh:hover { border-color: var(--accent); color: var(--text); }
+    .auth-refresh:disabled { cursor: progress; opacity: 0.7; }
+    .auth-refresh .spin {
+      width: 13px; height: 13px; border-radius: 50%;
+      border: 2px solid var(--border-strong); border-top-color: var(--accent);
+      animation: spin 0.7s linear infinite; display: none;
+    }
+    .auth-refresh:disabled .spin { display: inline-block; }
+    .auth-refresh:not(:disabled) .spin { display: none; }
+
+    .auth-signin {
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      padding: 16px 20px;
+      background: var(--panel-2);
+    }
+    .auth-signin .copy { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .auth-signin .copy .icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: grid; place-items: center;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      color: var(--accent); font-size: 16px; font-weight: 700;
+    }
+    .auth-signin .t { color: var(--text); font-size: 14px; font-weight: 600; }
+    .auth-signin .d { color: var(--muted); font-size: 12px; line-height: 1.45; max-width: 560px; margin-top: 3px; }
+    .auth-signin .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .auth-signin input {
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      min-width: 220px;
+      padding: 8px 12px;
+    }
+    .auth-signin input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .auth-signin details.action { border: 0; background: none; padding: 0; }
+    .auth-signin details.action > summary { cursor: pointer; user-select: none; color: var(--muted); font-size: 12px; width: fit-content; }
+    .auth-signin details.action > summary:hover { color: var(--text); }
+    .auth-signin details.action[open] > .paste-body {
+      margin-top: 10px; display: grid; gap: 10px; width: 100%;
+      padding: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    }
+    .auth-signin details.action textarea {
+      font-family: ui-monospace, monospace; font-size: 12px; padding: 10px;
+      border-radius: 6px; border: 1px solid var(--border-strong);
+      background: var(--panel-2); color: var(--text); resize: vertical;
+    }
+
+    .auth-profiles { display: flex; flex-direction: column; }
+    .auth-profile {
+      display: grid;
+      grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(240px, 300px);
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s ease;
+    }
+    .auth-profile:last-child { border-bottom: 0; }
+    .auth-profile:hover { background: color-mix(in srgb, var(--panel-2) 50%, var(--panel)); }
+
+    .auth-profile-identity { padding: 18px 20px; border-right: 1px solid var(--border); }
+    .auth-profile-usage { padding: 18px 20px; border-right: 1px solid var(--border); }
+    .auth-profile-side { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+    .auth-status {
+      align-items: center;
+      display: inline-flex;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--ok) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+      color: var(--ok);
+    }
+    .auth-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    .auth-status.danger { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger); }
+    .auth-status.text { background: color-mix(in srgb, var(--muted) 12%, transparent); border-color: color-mix(in srgb, var(--muted) 30%, transparent); color: var(--muted); }
+    .auth-status.text::before { box-shadow: none; }
+
+    .profile-name { color: var(--text); font-size: 15px; font-weight: 700; margin-top: 10px; word-break: break-word; }
+    .profile-label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .profile-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .profile-chip {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 2px 7px; border-radius: 4px;
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent);
+    }
+    .profile-chip.readonly { border-color: color-mix(in srgb, var(--muted) 35%, transparent); background: color-mix(in srgb, var(--muted) 10%, transparent); color: var(--muted); }
+    .profile-chip.default { border-color: color-mix(in srgb, #b36cff 40%, transparent); background: color-mix(in srgb, #b36cff 12%, transparent); color: #b36cff; }
+    .profile-note { color: var(--accent); font-size: 11px; font-weight: 600; margin-top: 6px; }
+
+    .usage-empty { color: var(--muted); font-size: 13px; }
+    .usage-loading { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+    .usage-loading::after { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--accent); animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .usage-plan-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .usage-plan-badge {
+      font-size: 11px; font-weight: 700; text-transform: capitalize;
+      padding: 3px 9px; border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--usage-color, var(--accent)) 40%, transparent);
+      background: color-mix(in srgb, var(--usage-color, var(--accent)) 12%, transparent);
+      color: var(--usage-color, var(--accent));
+    }
+    .usage-credits-chip {
+      font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border-strong); background: var(--panel-2); color: var(--muted);
+    }
+
+    .usage-graph { display: flex; flex-direction: column; gap: 14px; }
+    .usage-lane { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .usage-ring { position: relative; width: 44px; height: 44px; }
+    .usage-ring svg { width: 44px; height: 44px; transform: rotate(-90deg); }
+    .usage-ring .ring-bg { fill: none; stroke: var(--border-strong); stroke-width: 4; }
+    .usage-ring .ring-fill {
+      fill: none; stroke: var(--usage-color, var(--accent)); stroke-width: 4; stroke-linecap: round;
+      transition: stroke-dashoffset 0.6s ease;
+    }
+    .usage-ring .ring-pct {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-size: 9px; font-weight: 700; color: var(--text);
+    }
+    .usage-lane-body { min-width: 0; }
+    .usage-lane-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .usage-lane-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .usage-lane-reset { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .usage-track {
+      margin-top: 6px; height: 6px; border-radius: 999px;
+      background: var(--border); overflow: hidden; position: relative;
+    }
+    .usage-track-fill {
+      height: 100%; border-radius: inherit;
+      background: linear-gradient(90deg, var(--usage-color, var(--accent)), color-mix(in srgb, var(--usage-color, var(--accent)) 65%, white));
+      transition: width 0.6s ease;
+    }
+    .usage-track-fill.danger { background: linear-gradient(90deg, var(--danger), color-mix(in srgb, var(--danger) 65%, white)); }
+    .usage-track-fill.warn { background: linear-gradient(90deg, var(--warn), color-mix(in srgb, var(--warn) 65%, white)); }
+
+    .token-row { display: flex; flex-direction: column; gap: 4px; }
+    .token-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px;
+      background: color-mix(in srgb, var(--ok) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+      color: var(--ok); width: fit-content;
+    }
+    .token-pill.danger { background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger); }
+    .token-pill.unknown { background: var(--panel-2); border-color: var(--border-strong); color: var(--muted); }
+    .token-detail { color: var(--muted); font-size: 11px; }
+    .updated-row { color: var(--muted); font-size: 11px; }
+
+    .auth-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .auth-actions button {
+      font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 6px;
+      border: 1px solid var(--border-strong); background: var(--panel-2); color: var(--text);
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .auth-actions button:hover { border-color: var(--accent); background: var(--panel); }
+    .auth-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .auth-actions button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+    .auth-actions button.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: var(--danger); }
+    .auth-action-label { color: var(--muted); font-size: 12px; font-style: italic; }
+
+    .auth-empty { color: var(--muted); font-size: 13px; padding: 32px 20px; text-align: center; }
+
+    @media (max-width: 760px) {
+      .auth-profile { grid-template-columns: 1fr; }
+      .auth-profile-identity, .auth-profile-usage { border-right: 0; border-bottom: 1px solid var(--border); }
+      .auth-signin { grid-template-columns: 1fr; }
+    }
 
     .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
     .skeleton { background: linear-gradient(90deg, var(--panel-2) 25%, var(--panel) 50%, var(--panel-2) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; height: 16px; }
@@ -306,6 +521,7 @@ function main() {
           </div>
         </div>
         ${codexAuthsCard()}
+        ${clineAuthsCard()}
       </section>
     </div>
   `;
@@ -459,6 +675,32 @@ function runtime() {
       return "done";
     }
 
+    const PROVIDER_COLORS = {
+      "cline-pass": "#9F57FA",
+      "lm-studio": "#5326C9",
+      "chatgpt-codex": "#049776",
+      "local-router": "#EBAE42",
+      "deepseek": "#4E6BFE",
+      "cloudflare-workers-ai": "#FF500B",
+    };
+
+    function providerColor(providerId) {
+      const id = String(providerId || "");
+      if (PROVIDER_COLORS[id]) return PROVIDER_COLORS[id];
+      var hash = 0;
+      for (var i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+      var hue = Math.abs(hash) % 360;
+      return 'hsl(' + hue + ' 74% 58%)';
+    }
+
+    function providerBadgeStyle(providerId) {
+      return '--provider-color:' + escapeHtml(providerColor(providerId));
+    }
+
+    function providerLabel(model) {
+      return model.providerDisplayName || model.providerId || 'Provider';
+    }
+
     function renderModels() {
       const filterText = els.search.value.trim().toLowerCase();
       const provider = els.providerFilter.value;
@@ -466,7 +708,7 @@ function runtime() {
       const providers = new Set(state.models.map((m) => m.providerId));
       const current = els.providerFilter.value;
       els.providerFilter.innerHTML = '<option value="">All providers</option>' +
-        Array.from(providers).sort().map((p) => '<option value="' + escapeHtml(p) + '"' + (p === current ? ' selected' : '') + '>' + escapeHtml(p) + '</option>').join("");
+        Array.from(providers).sort().map((p) => '<option value="' + escapeHtml(p) + '" style="color:' + escapeHtml(providerColor(p)) + '"' + (p === current ? ' selected' : '') + '>' + escapeHtml(p) + '</option>').join("");
 
       const filtered = state.models.filter((model) => {
         if (provider && model.providerId !== provider) return false;
@@ -488,7 +730,7 @@ function runtime() {
         return '<tr>' +
           '<td><div class="slug"><code>' + escapeHtml(model.slug) + '</code></div>' +
           '<small style="color:var(--muted)">' + escapeHtml(model.displayName || "") + '</small></td>' +
-          '<td><span class="badge provider">' + escapeHtml(model.providerDisplayName || model.providerId) + '</span></td>' +
+          '<td><span class="badge provider" style="' + providerBadgeStyle(model.providerId) + '">' + escapeHtml(providerLabel(model)) + '</span></td>' +
           '<td class="upstream"><code>' + escapeHtml(model.upstreamModel || "—") + '</code></td>' +
           '<td>' + modalities + '</td>' +
           '<td>' + escapeHtml(fmtContext(model.contextWindow)) + '</td>' +
@@ -529,8 +771,10 @@ function runtime() {
     els.modalityFilter.addEventListener("change", renderModels);
 
     ${codexAuthsRuntimeHelpers()}
+    ${clineAuthsRuntimeHelpers()}
     els.refresh.addEventListener("click", () => load().then(() => toast("Refreshed", "Doctor and model list updated.", "ok")));
     initCodexAuths();
+    initClineAuths();
     load();
   `;
 }

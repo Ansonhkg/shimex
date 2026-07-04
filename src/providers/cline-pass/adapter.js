@@ -7,14 +7,16 @@ import {
   responsesToChat,
   unwrapOpenAICompatiblePayload,
 } from "../openai-compatible/translate.js";
-import { clinePassAccessToken } from "./auth.js";
-import { clinePassInputModalities, clinePassProvider, clinePassUpstreamModel, isClinePassModelSlug } from "./index.js";
+import { clinePassAccessToken, clinePassProfileAccessToken } from "./auth.js";
+import { clinePassInputModalities, clinePassProvider, clinePassUpstreamModel, isClinePassModelSlug, loadClineAuthStore } from "./index.js";
+import { resolveClineProfileForSlug } from "./authStore.js";
 
 const CLINE_PASS_API_BASE_URL = "https://api.cline.bot/api/v1";
 
 export async function handleClinePassModelRequest(body, options = {}) {
-  const requestedModel = String(body.model || "");
-  if (!isClinePassModelSlug(requestedModel)) {
+  const route = options.route || null;
+  const requestedModel = String(route?.model?.slug || body.model || "");
+  if (!route && !isClinePassModelSlug(requestedModel)) {
     return null;
   }
   if (hasImageInput(body) && !clinePassInputModalities(requestedModel).includes("image")) {
@@ -25,15 +27,16 @@ export async function handleClinePassModelRequest(body, options = {}) {
       },
     }, 400);
   }
-  const upstreamModel = clinePassUpstreamModel(requestedModel);
+  const upstreamModel = route?.model?.upstreamModel || clinePassUpstreamModel(requestedModel);
   const chatBody = body.messages
     ? { ...body, model: upstreamModel }
     : responsesToChat(body, upstreamModel);
   const toolNamespaceMap = body.messages ? null : createToolNamespaceMap(body.tools);
-  const token = await clinePassAccessToken(options);
-  if (!token) {
-    return jsonResult({ error: { message: "ClinePass auth unavailable.", type: "shimex_auth_unavailable" } }, 401);
+  const resolved = await resolveClineAuth(route, requestedModel, options);
+  if (!resolved.token) {
+    return jsonResult({ error: { message: resolved.message || "ClinePass auth unavailable.", type: "shimex_auth_unavailable" } }, 401);
   }
+  const token = resolved.token;
   if (chatBody.stream) {
     return streamResult(async (response) => {
       await streamClinePassChat(response, chatBody, requestedModel, token, options.fetch || fetch, toolNamespaceMap);
@@ -162,4 +165,20 @@ function hasImageInput(value) {
     return true;
   }
   return hasImageInput(value.input) || hasImageInput(value.messages) || hasImageInput(value.content);
+}
+
+
+async function resolveClineAuth(route, requestedModel, options) {
+  if (route) {
+    const store = await loadClineAuthStore(route.providerConfig, options.rootConfig || route.rootConfig);
+    if (route.model.profile && store.profiles[route.model.profile]) {
+      return { token: await clinePassProfileAccessToken(store.profiles[route.model.profile], route.providerConfig, options.rootConfig || route.rootConfig, options) };
+    }
+    const resolved = resolveClineProfileForSlug(store, requestedModel);
+    if (resolved?.profile?.accessToken) {
+      return { token: await clinePassProfileAccessToken(resolved.profile, route.providerConfig, options.rootConfig || route.rootConfig, options) };
+    }
+  }
+  const token = await clinePassAccessToken(options);
+  return token ? { token } : { token: "", message: route?.model?.profile ? `Cline profile "${route.model.profile}" is unavailable.` : "ClinePass auth unavailable." };
 }

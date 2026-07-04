@@ -61,7 +61,7 @@ export function codexCatalogEntry(model, index = 0) {
 
 function codexDisplayName(model) {
   const providerName = model.providerDisplayName || model.providerId;
-  if (model.providerId === "chatgpt-codex" && model.profile && model.displayName.includes(":")) {
+  if (["chatgpt-codex", "cline-pass"].includes(model.providerId) && model.profile && model.displayName.includes(":")) {
     return model.displayName;
   }
   if (!providerName) {

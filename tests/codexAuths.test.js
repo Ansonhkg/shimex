@@ -57,6 +57,18 @@ function fakeJwt(payload) {
   return `${header}.${body}.sig`;
 }
 
+async function seedLegacyCodexAuth(root, { accessToken, accountId = "acct_default", expiresAt = "2099-01-01T00:00:00.000Z" } = {}) {
+  const path = join(root, "codex-auth.json");
+  await writeFile(path, JSON.stringify({
+    tokens: {
+      access_token: accessToken || fakeJwt({ exp: Math.floor(Date.parse(expiresAt) / 1000) }),
+      account_id: accountId,
+      expires_at: expiresAt,
+    },
+  }, null, 2));
+  return path;
+}
+
 describe("chatgpt-codex auth store", () => {
   test("upsertProfile enforces profile name shape", () => {
     const store = { profiles: {}, defaultProfile: "" };
@@ -491,7 +503,7 @@ describe("codex-auth HTTP API", () => {
     const path = join(root, "codex-auths.json");
     const routes = createCodexAuthRoutes({
       runtime: { home: root, host: "127.0.0.1", port: 18765 },
-      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path } }],
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path, legacy_single_account: false } }],
     });
     const list = await routes.route(makeRequest("GET"), new URL("http://x/api/codex-auths"));
     assert.equal(list.status, 200);
@@ -515,12 +527,62 @@ describe("codex-auth HTTP API", () => {
     assert.equal(JSON.parse(listAfterRemove.body).defaultProfile, "");
   });
 
+
+
+  test("renew route refreshes a stored Codex profile and persists the new token", async () => {
+    const root = await freshRoot();
+    const path = join(root, "codex-auths.json");
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      default_profile: "partner",
+      profiles: {
+        partner: {
+          label: "partner",
+          account_id: "old-account",
+          access_token: "old-token",
+          refresh_token: "refresh-partner",
+          expires_at: "2026-01-01T00:00:00.000Z",
+          token_type: "Bearer",
+          available: true,
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+          note: "",
+        },
+      },
+    }, null, 2));
+    const nextAccess = fakeJwt({ exp: Math.floor(Date.parse("2099-03-01T00:00:00.000Z") / 1000), "https://api.openai.com/auth": { chatgpt_account_id: "new-account" } });
+    const routes = createCodexAuthRoutes({
+      runtime: { home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path, legacy_single_account: false } }],
+    });
+    const calls = [];
+    const result = await routes.route(
+      makeRequest("POST"),
+      new URL("http://x/api/codex-auths/partner/renew"),
+      { fetch: async (url, init) => {
+        calls.push({ url, init });
+        return new Response(JSON.stringify({ access_token: nextAccess, refresh_token: "next-refresh", expires_in: 3600, token_type: "Bearer" }), { headers: { "content-type": "application/json" } });
+      } },
+    );
+    assert.equal(result.status, 200);
+    assert.equal(calls[0].url, "https://auth.openai.com/oauth/token");
+    assert.match(String(calls[0].init.body), /grant_type=refresh_token/);
+    assert.match(String(calls[0].init.body), /refresh_token=refresh-partner/);
+    const body = JSON.parse(result.body);
+    assert.equal(body.renewed, true);
+    const store = await readCodexAuths(path);
+    assert.equal(store.profiles.partner.accessToken, nextAccess);
+    assert.equal(store.profiles.partner.refreshToken, "next-refresh");
+    assert.equal(store.profiles.partner.accountId, "new-account");
+  });
+
+
   test("rename route renames a profile and preserves the default", async () => {
     const root = await freshRoot();
     const path = await seedProfiles(root, ["partner"]);
     const routes = createCodexAuthRoutes({
       runtime: { home: root },
-      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path } }],
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path, legacy_single_account: false } }],
     });
     const renamed = await routes.route(
       makeRequest("POST", { name: "work" }),
@@ -630,6 +692,53 @@ describe("codex-auth HTTP API", () => {
     assert.equal(body.secondaryWindow.remainingPercent, 97);
     assert.equal(body.credits.balance, "0");
     assert.equal(body.resetCreditsAvailable, 0);
+  });
+
+
+  test("list includes read-only default Codex auth with expiry", async () => {
+    const root = await freshRoot();
+    const authPath = await seedLegacyCodexAuth(root, { accountId: "acct_default_readonly" });
+    const config = {
+      runtime: { home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auth_path: authPath, auths_path: join(root, "codex-auths.json") } }],
+    };
+    const routes = createCodexAuthRoutes(config);
+    const result = await routes.route(new Request("http://shimex/api/codex-auths"), new URL("http://shimex/api/codex-auths"));
+    assert.equal(result.status, 200);
+    const payload = JSON.parse(result.body);
+    const row = payload.profiles.find((profile) => profile.name === "default-codex");
+    assert.ok(row);
+    assert.equal(row.label, "Default Codex auth");
+    assert.equal(row.readOnly, true);
+    assert.equal(row.expiresAt, "2099-01-01T00:00:00.000Z");
+    assert.equal(row.accountMasked, "acc…nly");
+  });
+
+  test("default Codex auth supports usage but cannot be disconnected", async () => {
+    const root = await freshRoot();
+    const authPath = await seedLegacyCodexAuth(root, { accessToken: "legacy-default-token", accountId: "acct_default" });
+    const config = {
+      runtime: { home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auth_path: authPath, auths_path: join(root, "codex-auths.json") } }],
+    };
+    const routes = createCodexAuthRoutes(config);
+    const usage = await routes.route(new Request("http://shimex/api/codex-auths/default-codex/usage"), new URL("http://shimex/api/codex-auths/default-codex/usage"), {
+      fetch: async (url, init) => {
+        assert.equal(url, "https://chatgpt.com/backend-api/wham/usage");
+        assert.equal(init.headers.authorization, "Bearer legacy-default-token");
+        assert.equal(init.headers["chatgpt-account-id"], "acct_default");
+        return new Response(JSON.stringify({
+          plan_type: "plus",
+          rate_limit: { allowed: true, limit_reached: false, primary_window: { used_percent: 25, reset_at: 1783119833 } },
+          credits: { balance: "0" },
+        }), { headers: { "content-type": "application/json" } });
+      },
+    });
+    assert.equal(usage.status, 200);
+    assert.equal(JSON.parse(usage.body).profile, "default-codex");
+    const remove = await routes.route(new Request("http://shimex/api/codex-auths/default-codex", { method: "DELETE" }), new URL("http://shimex/api/codex-auths/default-codex"));
+    assert.equal(remove.status, 403);
+    assert.match(JSON.parse(remove.body).error, /cannot be disconnected/);
   });
 
   test("start-device route returns placeholder device login", async () => {

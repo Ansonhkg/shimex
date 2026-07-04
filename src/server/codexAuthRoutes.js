@@ -1,4 +1,5 @@
 import { loadAuthStore } from "../providers/chatgpt-codex/index.js";
+import { readCodexAuth, refreshCodexProfileAuth } from "../providers/chatgpt-codex/auth.js";
 import {
   authStorePath,
   listProfileSummaries,
@@ -19,6 +20,7 @@ import {
 
 const CHATGPT_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 const CHATGPT_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+const DEFAULT_CODEX_PROFILE_NAME = "default-codex";
 
 export function createCodexAuthRoutes(config) {
   const codexProviderConfig = () =>
@@ -53,6 +55,8 @@ export function createCodexAuthRoutes(config) {
       if (renameMatch) return await handleRename(decodeURIComponent(renameMatch[1]), request, listProfiles, codexProviderConfig, config, method);
       const usageMatch = path.match(/^\/api\/codex-auths\/([^/]+)\/usage$/);
       if (usageMatch) return await handleUsage(decodeURIComponent(usageMatch[1]), codexProviderConfig, config, options, method);
+      const renewMatch = path.match(/^\/api\/codex-auths\/([^/]+)\/renew$/);
+      if (renewMatch) return await handleRenew(decodeURIComponent(renewMatch[1]), listProfiles, codexProviderConfig, config, options, method);
       const creditsMatch = path.match(/^\/api\/codex-auths\/([^/]+)\/credits$/);
       if (creditsMatch) return await handleCredits(decodeURIComponent(creditsMatch[1]), codexProviderConfig, config, options, method);
       const profileMatch = path.match(/^\/api\/codex-auths\/([^/]+)$/);
@@ -68,7 +72,7 @@ async function handleList(listProfiles, codexProviderConfig, config) {
   return json({
     path,
     defaultProfile: store.defaultProfile,
-    profiles: listProfileSummaries(store),
+    profiles: await listProfilesWithDefaultCodex(store, codexProviderConfig(), config),
   });
 }
 
@@ -78,6 +82,7 @@ async function handleRename(profileName, request, listProfiles, codexProviderCon
   const body = await readJsonSafe(request);
   const nextName = String(body.name || body.to || body.profile || "").trim();
   if (!nextName) return json({ error: "new profile name is required" }, { status: 400 });
+  if (isDefaultCodexProfileName(profileName)) return json({ error: "default Codex auth is read-only" }, { status: 403 });
   const store = await listProfiles();
   const result = renameProfile(store, profileName, nextName);
   if (!result.renamed) {
@@ -127,6 +132,7 @@ async function handleAdd(request, listProfiles, codexProviderConfig, config) {
 async function handleRemove(profileName, listProfiles, codexProviderConfig, config, method) {
   if (method !== "DELETE") return methodNotAllowed(["DELETE"]);
   if (!profileName) return json({ error: "profile name is required" }, { status: 400 });
+  if (isDefaultCodexProfileName(profileName)) return json({ error: "default Codex auth cannot be disconnected" }, { status: 403 });
   const store = await listProfiles();
   const result = removeProfile(store, profileName);
   if (!result.removed) return json({ error: `profile "${profileName}" not found` }, { status: 404 });
@@ -142,6 +148,7 @@ async function handleRemove(profileName, listProfiles, codexProviderConfig, conf
 async function handleUse(profileName, listProfiles, codexProviderConfig, config, method) {
   if (method !== "POST") return methodNotAllowed(["POST"]);
   if (!profileName) return json({ error: "profile name is required" }, { status: 400 });
+  if (isDefaultCodexProfileName(profileName)) return json({ error: "default Codex auth is already managed by Codex" }, { status: 403 });
   const store = await listProfiles();
   if (!store.profiles[profileName]) return json({ error: `profile "${profileName}" not found` }, { status: 404 });
   const next = setDefaultProfile(store, profileName);
@@ -151,6 +158,30 @@ async function handleUse(profileName, listProfiles, codexProviderConfig, config,
     defaultProfile: next.defaultProfile,
     changed: next.changed,
   });
+}
+
+async function handleRenew(profileName, listProfiles, codexProviderConfig, config, options, method) {
+  if (method !== "POST") return methodNotAllowed(["POST"]);
+  if (!profileName) return json({ error: "profile name is required" }, { status: 400 });
+  if (isDefaultCodexProfileName(profileName)) return json({ error: "default Codex auth is managed by Codex; renew it from Codex Desktop" }, { status: 403 });
+  const store = await listProfiles();
+  const profile = store.profiles[profileName];
+  if (!profile) return json({ error: `profile "${profileName}" not found` }, { status: 404 });
+  if (!profile.refreshToken) return json({ error: `profile "${profileName}" has no refresh token` }, { status: 400 });
+  try {
+    const renewed = await refreshCodexProfileAuth(profile, {
+      fetch: options.fetch,
+      clientId: codexProviderConfig().options?.client_id || codexProviderConfig().options?.clientId,
+      authBaseUrl: codexProviderConfig().options?.auth_base_url || codexProviderConfig().options?.authBaseUrl,
+      tokenUrl: codexProviderConfig().options?.token_url || codexProviderConfig().options?.tokenUrl,
+    });
+    if (!renewed?.accessToken) return json({ error: "Codex token refresh did not return a new access token" }, { status: 502 });
+    const profiles = { ...store.profiles, [profileName]: renewed };
+    await writeStorePayload(codexProviderConfig(), config, { profiles, defaultProfile: store.defaultProfile });
+    return json({ path: authStorePath(codexProviderConfig(), config), profile: publicProfile(renewed), renewed: true });
+  } catch (error) {
+    return json({ error: `Codex token refresh failed: ${String(error?.message || error)}` }, { status: 502 });
+  }
 }
 
 async function handleStartDevice(request, codexProviderConfig, config, options) {
@@ -203,8 +234,7 @@ async function handleDeviceCancel(loginId) {
 async function handleCredits(profileName, codexProviderConfig, config, options, method) {
   if (method !== "GET") return methodNotAllowed(["GET"]);
   if (!profileName) return json({ error: "profile name is required" }, { status: 400 });
-  const store = await loadAuthStore(codexProviderConfig(), config);
-  const profile = store.profiles[profileName];
+  const profile = await resolveCodexAuthProfile(profileName, codexProviderConfig(), config);
   if (!profile) return json({ error: `profile "${profileName}" not found` }, { status: 404 });
   const fetcher = options.fetch || fetch;
   let response;
@@ -246,8 +276,7 @@ async function handleCredits(profileName, codexProviderConfig, config, options, 
 async function handleUsage(profileName, codexProviderConfig, config, options, method) {
   if (method !== "GET") return methodNotAllowed(["GET"]);
   if (!profileName) return json({ error: "profile name is required" }, { status: 400 });
-  const store = await loadAuthStore(codexProviderConfig(), config);
-  const profile = store.profiles[profileName];
+  const profile = await resolveCodexAuthProfile(profileName, codexProviderConfig(), config);
   if (!profile) return json({ error: `profile "${profileName}" not found` }, { status: 404 });
   const fetcher = options.fetch || fetch;
   let response;
@@ -273,6 +302,58 @@ async function handleUsage(profileName, codexProviderConfig, config, options, me
     return json({ error: "upstream body was not JSON" }, { status: 502 });
   }
   return json(normalizeUsage(profile, payload));
+}
+
+async function listProfilesWithDefaultCodex(store, codexProviderConfigValue, config) {
+  const summaries = listProfileSummaries(store);
+  const legacy = await readLegacyCodexAuth(codexProviderConfigValue);
+  if (!legacy?.accessToken) return summaries;
+  return [defaultCodexProfileSummary(legacy), ...summaries];
+}
+
+function defaultCodexProfileSummary(auth) {
+  return {
+    name: DEFAULT_CODEX_PROFILE_NAME,
+    label: "Default Codex auth",
+    accountMasked: maskAccountId(auth.accountId),
+    createdAt: "",
+    updatedAt: "",
+    expiresAt: auth.expiresAt || "",
+    expiresInSeconds: expiresInSeconds(auth.expiresAt),
+    tokenExpired: tokenExpired(auth.expiresAt),
+    available: true,
+    note: "read-only ~/.codex/auth.json",
+    isDefault: false,
+    readOnly: true,
+    source: "codex",
+  };
+}
+
+async function resolveCodexAuthProfile(profileName, codexProviderConfigValue, config) {
+  if (isDefaultCodexProfileName(profileName)) {
+    const legacy = await readLegacyCodexAuth(codexProviderConfigValue);
+    return legacy?.accessToken ? {
+      name: DEFAULT_CODEX_PROFILE_NAME,
+      label: "Default Codex auth",
+      accessToken: legacy.accessToken,
+      accountId: legacy.accountId || "",
+      expiresAt: legacy.expiresAt || "",
+      available: true,
+      readOnly: true,
+    } : null;
+  }
+  const store = await loadAuthStore(codexProviderConfigValue, config);
+  return store.profiles[profileName] || null;
+}
+
+function isDefaultCodexProfileName(profileName) {
+  return profileName === DEFAULT_CODEX_PROFILE_NAME || profileName === "default" || profileName === "codex-default";
+}
+
+function readLegacyCodexAuth(codexProviderConfigValue) {
+  if (codexProviderConfigValue?.options?.legacy_single_account === false) return null;
+  const legacyPath = codexProviderConfigValue?.options?.auth_path || codexProviderConfigValue?.options?.authPath || codexProviderConfigValue?.auth?.path;
+  return readCodexAuth({ authPath: legacyPath || undefined });
 }
 
 async function writeStorePayload(codexProviderConfigValue, config, payload) {

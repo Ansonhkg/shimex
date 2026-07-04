@@ -2,21 +2,23 @@ import { createServer as createHttpServer } from "node:http";
 import { adminPage } from "../admin/page.js";
 import { deviceLoginPage } from "../admin/deviceLoginPage.js";
 import { getShimexCodexDeviceLogin } from "../providers/chatgpt-codex/deviceLogin.js";
+import { getShimexClineDeviceLogin } from "../providers/cline-pass/deviceLogin.js";
 import { discoverModels, refreshProviderModelCaches } from "../core/modelDiscovery.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { installCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { handleProviderModelRequest } from "../providers/adapter.js";
-import { handleClinePassModelRequest } from "../providers/cline-pass/adapter.js";
 import { createCodexAuthRoutes } from "./codexAuthRoutes.js";
+import { createClineAuthRoutes } from "./clineAuthRoutes.js";
 
 export async function createServer(config) {
   await refreshProviderModelCaches(config);
   const codexAuthRoutes = createCodexAuthRoutes(config);
+  const clineAuthRoutes = createClineAuthRoutes(config);
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);
-      const result = await routeRequest(config, request, url, { stop: () => server.close(), codexAuthRoutes });
+      const result = await routeRequest(config, request, url, { stop: () => server.close(), codexAuthRoutes, clineAuthRoutes });
       writeResponse(response, result);
     } catch (error) {
       writeResponse(response, json({ error: String(error?.message || error) }, { status: 500 }));
@@ -70,6 +72,12 @@ async function routeRequest(config, request, url, control = {}) {
       return result;
     }
   }
+  if (pathname === "/api/cline-auths" || pathname.startsWith("/api/cline-auths/")) {
+    const result = await control.clineAuthRoutes?.route(request, url);
+    if (result) {
+      return result;
+    }
+  }
   if (method === "GET" && pathname === "/admin/codex-auth/device") {
     const id = url.searchParams.get("id");
     if (!id) {
@@ -80,6 +88,27 @@ async function routeRequest(config, request, url, control = {}) {
       return html("<!doctype html><meta charset=utf-8><title>Codex device login expired</title><p>This device login was cancelled or expired. <a href='/admin'>Back to admin</a></p>");
     }
     return html(deviceLoginPage(login, { apiBase: "" }));
+  }
+
+  if (method === "GET" && pathname === "/admin/cline-auth/device") {
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return html("<!doctype html><meta charset=utf-8><title>Cline device login</title><p>Missing device login id. <a href='/admin'>Back</a></p>");
+    }
+    const login = getShimexClineDeviceLogin(id);
+    if (!login) {
+      return html("<!doctype html><meta charset=utf-8><title>Cline device login expired</title><p>This device login was cancelled or expired. <a href='/admin'>Back to admin</a></p>");
+    }
+    return html(deviceLoginPage(login, {
+      apiBase: "",
+      provider: "cline",
+      providerTitle: "Cline",
+      providerShort: "Cline",
+      loginLabel: "Cline login",
+      statusPath: "/api/cline-auths/device/",
+      completePath: "/api/cline-auths/device/",
+      cancelPath: "/api/cline-auths/device/",
+    }));
   }
   if (method === "POST" && pathname === "/api/install") {
     return json(await installCodexClient(config, { apply: url.searchParams.get("apply") === "1" }));
@@ -99,10 +128,6 @@ async function routeRequest(config, request, url, control = {}) {
   if (method === "POST" && routeIsModelRequest(pathname)) {
     const body = await readJsonBody(request);
     logIncomingModelRequest(pathname, body);
-    const clinePass = await handleClinePassModelRequest(body);
-    if (clinePass) {
-      return clinePass;
-    }
     return await handleProviderModelRequest(config, pathname, body, { headers: request.headers });
   }
   return json({ error: "not found" }, { status: 404 });

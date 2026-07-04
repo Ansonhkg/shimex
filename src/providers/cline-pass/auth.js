@@ -1,5 +1,6 @@
 import { readFile, writeFile, chmod } from "node:fs/promises";
 import { expandHome } from "../../core/paths.js";
+import { clineAuthStorePath, readClineAuths, writeClineAuths, stripWorkosPrefix, withWorkosPrefix } from "./authStore.js";
 
 const DEFAULT_PROVIDER_SETTINGS = "~/.cline/data/settings/providers.json";
 const CLINE_PASS_API_BASE_URL = "https://api.cline.bot/api/v1";
@@ -72,6 +73,73 @@ export async function refreshClinePassAuth(options = {}) {
   return access.trim();
 }
 
+export async function clinePassProfileAccessToken(profile, providerConfig, rootConfig, options = {}) {
+  const auth = await ensureFreshClineProfile(profile, providerConfig, rootConfig, options);
+  return auth?.accessToken ? withWorkosPrefix(auth.accessToken) : "";
+}
+
+export async function ensureFreshClineProfile(profile, providerConfig, rootConfig, options = {}) {
+  if (!profile?.accessToken) return null;
+  if (!shouldRefreshProfile(profile, options)) return profile;
+  if (!profile.refreshToken) return profile;
+  try {
+    return await refreshClineProfileAuth(profile, providerConfig, rootConfig, options) || profile;
+  } catch {
+    return profile;
+  }
+}
+
+export async function refreshClineProfileAuth(profile, providerConfig, rootConfig, options = {}) {
+  const response = await (options.fetch || fetch)(authEndpointUrl(providerConfig, "/api/v1/auth/refresh"), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      "user-agent": "shimex",
+    },
+    body: JSON.stringify({ refreshToken: profile.refreshToken, grantType: "refresh_token" }),
+  });
+  if (!response.ok) return "";
+  const payload = await response.json();
+  const tokenData = payload?.data;
+  const access = tokenData?.accessToken;
+  if (typeof access !== "string" || !access.trim()) return "";
+  const path = clineAuthStorePath(providerConfig, rootConfig);
+  const store = await readClineAuths(path);
+  const current = store.profiles[profile.name];
+  if (current) {
+    const expiresAt = parseExpiresAt(tokenData.expiresAt);
+    store.profiles[profile.name] = {
+      ...current,
+      accessToken: stripWorkosPrefix(access.trim()),
+      refreshToken: tokenData.refreshToken || current.refreshToken,
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : current.expiresAt,
+      accountId: tokenData.userInfo?.clineUserId || current.accountId,
+      email: tokenData.userInfo?.email || current.email,
+      updatedAt: new Date().toISOString(),
+    };
+    await writeClineAuths(path, store);
+  }
+  return store.profiles[profile.name] || { ...profile, accessToken: stripWorkosPrefix(access.trim()) };
+}
+
+function shouldRefreshProfile(profile, options = {}) {
+  if (options.force) return true;
+  const expiresAt = Date.parse(profile.expiresAt || "");
+  if (!Number.isFinite(expiresAt)) return false;
+  return expiresAt <= Date.now() + 300000;
+}
+
+function apiBaseUrl(config) {
+  return String(config?.options?.api_base_url || config?.options?.apiBaseUrl || CLINE_PASS_API_BASE_URL).replace(/\/$/, "");
+}
+
+function authEndpointUrl(config, endpoint) {
+  const base = apiBaseUrl(config);
+  if (base.endsWith("/api/v1")) return `${base}${endpoint.replace(/^\/api\/v1/, "")}`;
+  return `${base}${endpoint}`;
+}
+
 async function readAuth(options) {
   const data = await readProviderSettings(providerSettingsPath(options));
   return providerAuth(data);
@@ -91,14 +159,6 @@ function providerAuth(data) {
 
 function providerSettingsPath(options) {
   return expandHome(options.providerSettingsPath || process.env.CLINE_PROVIDER_SETTINGS_PATH || DEFAULT_PROVIDER_SETTINGS);
-}
-
-function withWorkosPrefix(token) {
-  return token.toLowerCase().startsWith("workos:") ? token : `workos:${token}`;
-}
-
-function stripWorkosPrefix(token) {
-  return token.toLowerCase().startsWith("workos:") ? token.slice("workos:".length) : token;
 }
 
 function parseExpiresAt(value) {

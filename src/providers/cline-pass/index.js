@@ -1,4 +1,6 @@
 import { readProviderModelCache, shouldRefreshModels, writeProviderModelCache } from "../../core/modelCache.js";
+import { clineAuthStorePath, readClineAuths } from "./authStore.js";
+import { readClinePassAccessToken } from "./auth.js";
 
 const CLINE_PASS_RECOMMENDED_MODELS_URL = "https://api.cline.bot/api/v1/ai/cline/recommended-models";
 
@@ -24,8 +26,43 @@ export const clinePassProvider = {
   capabilitySource: "provider-recommended-models",
   requestAdapter: "cline-pass-openai-chat",
   async discoverModels(config, rootConfig) {
-    const cached = rootConfig ? await readProviderModelCache(rootConfig, config) : [];
-    return (cached.length ? cached : fallbackModels()).map((model) => ({ ...model, priority: model.priority || 9500 }));
+    const baseModels = await discoverBaseModels(config, rootConfig);
+    if (config.options?.show_without_auth === true) {
+      return baseModels;
+    }
+    const store = await loadClineAuthStore(config, rootConfig);
+    const profileNames = Object.keys(store.profiles);
+    if (profileNames.length) {
+      const defaultProfile = store.defaultProfile && store.profiles[store.defaultProfile]?.accessToken
+        ? store.profiles[store.defaultProfile]
+        : null;
+      const defaultModels = defaultProfile
+        ? baseModels.map((model, index) => ({
+          ...model,
+          profile: defaultProfile.name,
+          priority: (model.priority || (9500 - index * 10)) + 1000,
+          upstreamModel: model.upstreamModel,
+        }))
+        : [];
+      const scopedModels = profileNames.flatMap((profileName, profileIndex) => {
+        const profile = store.profiles[profileName];
+        if (!profile?.accessToken) return [];
+        return baseModels.map((model, modelIndex) => ({
+          ...model,
+          slug: `${profileName}-${model.slug}`,
+          displayName: `${profileName}: ${model.displayName}`,
+          priority: (model.priority || (9500 - modelIndex * 10)) - profileIndex * 100,
+          profile: profileName,
+          upstreamModel: model.upstreamModel,
+        }));
+      });
+      return [...defaultModels, ...scopedModels];
+    }
+    if (config.options?.require_auth === true) {
+      return [];
+    }
+    const legacy = await readClinePassAccessToken({ providerSettingsPath: config.options?.provider_settings_path || config.options?.providerSettingsPath });
+    return legacy ? baseModels : [];
   },
   async refreshModels(config, rootConfig, options = {}) {
     if (!shouldRefreshModels(config)) {
@@ -53,16 +90,32 @@ export const clinePassProvider = {
   },
 };
 
+export async function loadClineAuthStore(config, rootConfig) {
+  return await readClineAuths(clineAuthStorePath(config, rootConfig));
+}
+
 export function isClinePassModelSlug(slug) {
   return CLINE_PASS_MODELS.some(([upstreamModel]) => slugFor(upstreamModel) === slug);
 }
 
 export function clinePassUpstreamModel(slug) {
-  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === slug)?.[0] || slug;
+  const baseSlug = stripKnownProfilePrefix(slug);
+  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === baseSlug)?.[0] || slug;
 }
 
 export function clinePassInputModalities(slug) {
-  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === slug)?.[3] || ["text"];
+  const baseSlug = stripKnownProfilePrefix(slug);
+  return CLINE_PASS_MODELS.find(([upstreamModel]) => slugFor(upstreamModel) === baseSlug)?.[3] || ["text"];
+}
+
+async function discoverBaseModels(config, rootConfig) {
+  const cached = rootConfig ? await readProviderModelCache(rootConfig, config) : [];
+  return (cached.length ? cached : fallbackModels()).map((model) => ({ ...model, priority: model.priority || 9500 }));
+}
+
+function stripKnownProfilePrefix(slug) {
+  const modelSlugs = CLINE_PASS_MODELS.map(([upstreamModel]) => slugFor(upstreamModel)).sort((a, b) => b.length - a.length);
+  return modelSlugs.find((modelSlug) => slug === modelSlug || slug.endsWith(`-${modelSlug}`)) || slug;
 }
 
 function slugFor(value) {

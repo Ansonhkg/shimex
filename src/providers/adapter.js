@@ -2,6 +2,7 @@ import { handleAnthropicRequest } from "./anthropic/adapter.js";
 import { autoRouterNoCandidateResult, resolveAutoRouterCandidate } from "./auto-router/adapter.js";
 import { handleChatGptCodexRequest } from "./chatgpt-codex/adapter.js";
 import { handleCursorComposerRequest } from "./cursor-composer/adapter.js";
+import { handleClinePassModelRequest } from "./cline-pass/adapter.js";
 import { handleOpenAiCompatibleRequest } from "./openai-compatible/adapter.js";
 import { handleOpenAiResponsesRequest } from "./openai-responses/adapter.js";
 import { jsonResult, resolveModelRoute } from "./routes.js";
@@ -44,6 +45,8 @@ export async function handleProviderModelRequest(config, pathname, body, options
       return await handleChatGptCodexRequest(route, pathname, body, options);
     case "cursor-agent-bridge":
       return await handleCursorComposerRequest(route, pathname, body, options);
+    case "cline-pass-openai-chat":
+      return await handleClinePassModelRequest(body, { ...options, route, rootConfig: config });
     case "openai-compatible-chat":
       return await handleOpenAiCompatibleRequest(route, pathname, body, options);
     case "openai-compatible-responses":

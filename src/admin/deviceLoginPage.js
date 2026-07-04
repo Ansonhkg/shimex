@@ -24,6 +24,13 @@ export function deviceLoginPage(login, options = {}) {
   const escapedCode = escapeHtml(login.userCode);
   const profileName = login.profile || "";
   const apiBase = options.apiBase || "";
+  const provider = options.provider || "codex";
+  const providerTitle = options.providerTitle || "OpenAI Codex";
+  const providerShort = options.providerShort || "Codex";
+  const completePath = options.completePath || "/api/codex-auths/device/";
+  const statusPath = options.statusPath || "/api/codex-auths/device/";
+  const cancelPath = options.cancelPath || "/api/codex-auths/device/";
+  const loginLabel = options.loginLabel || "OpenAI login";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -33,7 +40,12 @@ ${pending ? '<meta http-equiv="refresh" content="4">' : ""}
 <meta name="shimex-api-base" content="${escapeHtml(apiBase)}">
 <meta name="shimex-device-id" content="${escapeHtml(login.id)}">
 <meta name="shimex-profile" content="${escapeHtml(profileName)}">
-<title>Connect Codex</title>
+<meta name="shimex-provider" content="${escapeHtml(provider)}">
+<meta name="shimex-status-path" content="${escapeHtml(statusPath)}">
+<meta name="shimex-complete-path" content="${escapeHtml(completePath)}">
+<meta name="shimex-cancel-path" content="${escapeHtml(cancelPath)}">
+<meta name="shimex-complete-url" content="${escapeHtml(`${completePath}${login.id}/complete`)}">
+<title>Connect ${escapeHtml(providerShort)}</title>
 <style>
 body { background: #07100c; color: #f5f0e4; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; }
 main { display: grid; gap: 18px; margin: 0 auto; max-width: 760px; padding: 48px 20px; }
@@ -59,10 +71,10 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
 <main>
   <p><a href="/admin">Back to Shimex admin</a></p>
   <section>
-    <h1>Connect OpenAI Codex</h1>
+    <h1>Connect ${escapeHtml(providerTitle)}</h1>
     ${profileName ? `<p class="muted">This device flow will save into the <strong>${escapeHtml(profileName)}</strong> profile.</p>` : ""}
     ${login.status === "complete" ? `
-      <p id="save-status">Codex is connected. Saving credentials to your Codex auths file…</p>
+      <p id="save-status">${escapeHtml(providerShort)} is connected. Saving credentials…</p>
       <p><a class="button" href="/admin">Return to dashboard</a></p>
       <script>
       (function () {
@@ -72,7 +84,7 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
         if (!apiBaseMeta || !deviceIdMeta) return;
         var base = apiBaseMeta.getAttribute("content") || "";
         var id = deviceIdMeta.getAttribute("content") || "";
-        fetch(base + "/api/codex-auths/device/" + encodeURIComponent(id) + "/complete", { method: "POST" })
+        fetch(base + "${completePath}" + encodeURIComponent(id) + "/complete", { method: "POST" })
           .then(function (res) {
             return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, body: body }; });
           })
@@ -91,11 +103,11 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
       </script>
     ` : ""}
     ${login.status === "error" ? `
-      <p class="error">${escapeHtml(login.error || "Codex login failed.")}</p>
+      <p class="error">${escapeHtml(login.error || "${escapeHtml(providerShort)} login failed.")}</p>
       <p><a class="button" href="/admin">Return to dashboard</a></p>
     ` : ""}
     ${pending ? `
-      <p>Open the OpenAI device login page and enter this code:</p>
+      <p>Open the ${escapeHtml(providerTitle)} device login page and enter this code:</p>
       <div class="basic-device-code-row">
         <button class="basic-device-code" type="button" aria-label="Copy device code ${escapedCode}" title="Copy code">
           ${codeSlots(login.userCode)}
@@ -103,14 +115,14 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
         <button class="basic-device-copy" type="button" data-copy-code="${escapedCode}" aria-label="Copy device code">Copy code</button>
         <span class="muted" data-copy-status aria-live="polite"></span>
       </div>
-      <p><a class="button" href="${escapeHtml(login.verificationUri)}" target="_blank" rel="noreferrer">Open OpenAI login</a></p>
-      <p class="muted">This page refreshes while the server waits for OpenAI to finish the device-code login.${login.expiresAt ? ` Code expires ${escapeHtml(login.expiresAt)}.` : ""}</p>
+      <p><a class="button" href="${escapeHtml(login.verificationUri)}" target="_blank" rel="noreferrer">Open ${escapeHtml(loginLabel)}</a></p>
+      <p class="muted">This page refreshes while the server waits for ${escapeHtml(providerTitle)} to finish the device-code login.${login.expiresAt ? ` Code expires ${escapeHtml(login.expiresAt)}.` : ""}</p>
       <form id="cancel-form" method="post" action="/admin/codex-auth/device" onsubmit="return false;" style="margin-top:14px;">
         <div class="button-row">
           <button type="button" class="button" id="complete-button">Save credentials when ready</button>
           <button type="button" class="button" id="cancel-button" style="background:#314239;color:#f5f0e4;">Cancel</button>
         </div>
-        <p class="muted" id="status-line" style="margin-top:8px;">Waiting for OpenAI…</p>
+        <p class="muted" id="status-line" style="margin-top:8px;">Waiting for ${escapeHtml(providerTitle)}…</p>
       </form>
     ` : ""}
   </section>
@@ -139,11 +151,15 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
   var apiBase = document.querySelector('meta[name="shimex-api-base"]').getAttribute('content') || '';
   var deviceId = document.querySelector('meta[name="shimex-device-id"]').getAttribute('content') || '';
   var statusLine = document.getElementById('status-line');
+  var statusPath = document.querySelector('meta[name="shimex-status-path"]').getAttribute('content') || '/api/codex-auths/device/';
+  var completePath = document.querySelector('meta[name="shimex-complete-path"]').getAttribute('content') || '/api/codex-auths/device/';
+  var cancelPath = document.querySelector('meta[name="shimex-cancel-path"]').getAttribute('content') || '/api/codex-auths/device/';
+  var providerTitle = document.querySelector('meta[name="shimex-provider"]').getAttribute('content') || 'codex';
   var completeBtn = document.getElementById('complete-button');
   var cancelBtn = document.getElementById('cancel-button');
   async function refresh() {
     try {
-      var response = await fetch(apiBase + '/api/codex-auths/device/' + encodeURIComponent(deviceId));
+      var response = await fetch(apiBase + statusPath + encodeURIComponent(deviceId));
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) {
         if (statusLine) statusLine.textContent = 'Login not found. Returning to admin shortly.';
@@ -155,7 +171,7 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
       var device = result && result.device;
       if (device && device.status === 'complete') {
         if (statusLine) statusLine.textContent = 'Connected. Saving credentials…';
-        var commit = await fetch(apiBase + '/api/codex-auths/device/' + encodeURIComponent(deviceId) + '/complete', { method: 'POST' });
+        var commit = await fetch(apiBase + completePath + encodeURIComponent(deviceId) + '/complete', { method: 'POST' });
         var commitResult = await commit.json().catch(function () { return {}; });
         if (commit.ok) {
           if (statusLine) statusLine.textContent = 'Saved as ' + (commitResult.profileName || 'profile') + '. Redirecting…';
@@ -166,7 +182,7 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
       } else if (device && device.status === 'error') {
         if (statusLine) statusLine.textContent = 'Login failed: ' + (device.error || 'unknown');
       } else {
-        if (statusLine) statusLine.textContent = 'Waiting for OpenAI…';
+        if (statusLine) statusLine.textContent = 'Waiting for ${escapeHtml(providerTitle)}…';
       }
     } catch (error) {
       if (statusLine) statusLine.textContent = 'Polling failed: ' + String(error && error.message || error);
@@ -174,7 +190,7 @@ input[type=text] { background: #050806; color: #f5f0e4; border: 1px solid #31423
   }
   if (completeBtn) completeBtn.addEventListener('click', refresh);
   if (cancelBtn) cancelBtn.addEventListener('click', async function () {
-    await fetch(apiBase + '/api/codex-auths/device/' + encodeURIComponent(deviceId) + '/cancel', { method: 'DELETE' }).catch(function () {});
+    await fetch(apiBase + cancelPath + encodeURIComponent(deviceId) + '/cancel', { method: 'DELETE' }).catch(function () {});
     window.location.href = '/admin';
   });
   // Drive the save proactively instead of relying on the 4s meta-refresh
