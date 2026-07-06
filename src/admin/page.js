@@ -337,6 +337,17 @@ function styles() {
       border: 1px solid var(--border-strong); background: var(--panel-2); color: var(--muted);
     }
 
+    .usage-reset-credits {
+      margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--border); background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      color: var(--text); font-size: 11px; line-height: 1.45;
+    }
+    .usage-reset-credits.error { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+    .usage-reset-credits-head { display: flex; flex-wrap: wrap; gap: 8px 14px; font-weight: 700; margin-bottom: 6px; }
+    .usage-credit-expirations { display: grid; gap: 3px; color: var(--muted); }
+    .usage-credit-expirations.muted { color: var(--muted); }
+    .usage-credit-expiration { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
     .usage-graph { display: flex; flex-direction: column; gap: 14px; }
     .usage-lane { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: center; }
     .usage-ring { position: relative; width: 44px; height: 44px; }

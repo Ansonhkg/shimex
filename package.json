@@ -15,7 +15,13 @@
     "stop": "node src/cli/main.js stop",
     "test": "node --test",
     "check": "npm test && npm run shimex -- doctor",
-    "stop:all": "node src/cli/main.js stop-all"
+    "stop:all": "node src/cli/main.js stop-all",
+    "backend": "node src/cli/main.js server ensure",
+    "backend:start": "node src/cli/main.js server ensure",
+    "backend:dev": "node src/cli/main.js server start",
+    "backend:restart": "node src/cli/main.js server restart",
+    "backend:stop": "node src/cli/main.js server stop",
+    "backend:status": "node src/cli/main.js server status"
   },
   "engines": {
     "node": ">=20.0.0",

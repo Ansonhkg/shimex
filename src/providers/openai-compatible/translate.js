@@ -26,13 +26,56 @@ export function responsesToChat(body, upstreamModel) {
   }
   return chat;
 }
-
 export function chatToResponsesRequest(body, upstreamModel) {
+  const instructions = [];
+  const input = [];
+
+  for (const msg of (Array.isArray(body.messages) ? body.messages : [])) {
+    if (!msg || typeof msg !== "object") {
+      continue;
+    }
+    if (msg.role === "system" || msg.role === "developer") {
+      const text = contentToText(msg.content);
+      if (text) instructions.push(text);
+      continue;
+    }
+    if (msg.role === "tool") {
+      input.push({
+        type: "function_call_output",
+        call_id: msg.tool_call_id || "",
+        output: contentToText(msg.content),
+      });
+      continue;
+    }
+    if (msg.role === "assistant" && Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
+      for (const call of msg.tool_calls) {
+        input.push({
+          type: "function_call",
+          call_id: call.id || "",
+          name: call.function?.name || call.name || "",
+          arguments: call.function?.arguments || call.arguments || "",
+        });
+      }
+      continue;
+    }
+    input.push({
+      type: "message",
+      role: normalizeRole(msg.role || "user"),
+      content: chatContentToResponsesContent(msg.content),
+    });
+  }
+
   const request = {
     model: upstreamModel,
-    input: body.messages || [],
+    input,
     stream: Boolean(body.stream),
+    // Chat completions are stateless; ChatGPT/Codex Responses requires this
+    // explicit opt-out when bridging /v1/chat/completions to /responses.
+    store: false,
   };
+  if (instructions.length) {
+    request.instructions = instructions.join("\n");
+  }
   copyIfPresent(body, request, "temperature");
   copyIfPresent(body, request, "top_p");
   copyIfPresent(body, request, "max_tokens", "max_output_tokens");
@@ -47,7 +90,6 @@ export function chatToResponsesRequest(body, upstreamModel) {
   }
   return request;
 }
-
 export function chatCompletionToResponse(payload, requestedModel, toolNamespaceMap = null) {
   const choice = payload.choices?.[0] || {};
   const message = choice.message || {};
@@ -468,6 +510,41 @@ function streamToolCallOutput(toolCall) {
     arguments: toolCall.arguments,
     ...namespaceFields(toolCall.namespaceMap, toolCall.name),
   };
+}
+
+function chatContentToResponsesContent(content) {
+  if (typeof content === "string") {
+    return [{ type: "input_text", text: content }];
+  }
+  if (!Array.isArray(content)) {
+    return [{ type: "input_text", text: contentToText(content || "") }];
+  }
+  const parts = [];
+  for (const part of content) {
+    if (typeof part === "string") {
+      parts.push({ type: "input_text", text: part });
+      continue;
+    }
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+    if (part.type === "text" || part.type === "input_text") {
+      parts.push({ type: "input_text", text: String(part.text || "") });
+      continue;
+    }
+    if (part.type === "image_url" || part.type === "input_image") {
+      parts.push({
+        type: "input_image",
+        image_url: typeof part.image_url === "string" ? part.image_url : part.image_url?.url || part.url || "",
+      });
+      continue;
+    }
+    const text = contentToText(part);
+    if (text) {
+      parts.push({ type: "input_text", text });
+    }
+  }
+  return parts.length ? parts : [{ type: "input_text", text: "" }];
 }
 
 function responsesInputToMessages(input) {

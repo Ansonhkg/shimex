@@ -9,7 +9,7 @@ import { codexDoctor } from "../clients/codex/doctor.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { installCodexClient, openCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { resolveCodexPaths } from "../clients/codex/paths.js";
-import { clearServerPid, serverStatus, stopServer, writeServerPid } from "../server/process.js";
+import { clearServerPid, ensureServerRunning, serverStatus, stopServer, writeServerPid } from "../server/process.js";
 import { loadAuthStore } from "../providers/chatgpt-codex/index.js";
 import {
   authStorePath,
@@ -20,6 +20,7 @@ import {
   upsertProfile,
   writeCodexAuths,
 } from "../providers/chatgpt-codex/authStore.js";
+import { runExec } from "./exec.js";
 import { expandHome } from "../core/paths.js";
 
 const commands = {
@@ -27,6 +28,7 @@ const commands = {
   version: runVersion,
   start: runStart,
   dev: runDev,
+  exec: runExec,
   status: runStatus,
   stop: runStop,
   "stop-all": runStopAll,
@@ -58,6 +60,7 @@ function runHelp() {
 
 start here:
   shimex start
+  shimex exec [--model <slug-or-display-name>] [prompt]
   shimex dev
   shimex status
   shimex stop
@@ -65,11 +68,14 @@ start here:
   shimex providers list
   shimex models list
   shimex server start [--port <port>]
+  shimex server ensure
+  shimex server restart
 
 commands:
   help                       Show help
   version                    Show version
   start                      Prepare and open the managed Shimex.app
+  exec                       Send a prompt to a Shimex model. Reads prompt from args or stdin.
   dev                        Run the server in the foreground and open Shimex.app
   status                     Show Shimex backend status
   stop                       Stop the detached Shimex backend
@@ -81,7 +87,9 @@ commands:
   providers list             List registered providers
   models list                List discovered models
   catalog print              Print the generated Codex model catalog
-  server start               Start the local HTTP/admin server
+  server start               Start the local HTTP/admin server in the foreground
+  server ensure              Start the backend in the background if needed
+  server restart             Restart only the background backend
   codex-auth list            List chatgpt-codex auth profiles
   codex-auth add <name>      Paste a chatgpt-codex auth JSON (path, "-" for stdin)
   codex-auth remove <name>   Remove a chatgpt-codex auth profile
@@ -220,14 +228,42 @@ async function runCatalog(args) {
 }
 
 async function runServer(args) {
-  if (args[0] !== "start") {
-    console.error("usage: shimex server start [--port <port>]");
+  const subcommand = args[0];
+  if (!subcommand || !["start", "ensure", "restart", "status", "stop"].includes(subcommand)) {
+    console.error("usage: shimex server <start|ensure|restart|status|stop> [--port <port>]");
     return 2;
   }
   const config = await loadShimexConfig();
   const port = readFlag(args, "--port");
   if (port) {
     config.runtime.port = Number(port);
+  }
+  if (subcommand === "status") {
+    const status = await serverStatus(config);
+    console.log(JSON.stringify(status, null, 2));
+    return status.running ? 0 : 1;
+  }
+  if (subcommand === "stop") {
+    const result = await stopServer(config);
+    console.log(JSON.stringify(result, null, 2));
+    return result.stopped || result.reason === "server-not-running" ? 0 : 1;
+  }
+  if (subcommand === "ensure") {
+    const result = await ensureBackendCanStart(config);
+    if (result.error) return 1;
+    console.log(JSON.stringify(await ensureServerRunning(config), null, 2));
+    return 0;
+  }
+  if (subcommand === "restart") {
+    const stopped = await stopServer(config);
+    const startable = await ensureBackendCanStart(config);
+    if (startable.error) {
+      console.error(JSON.stringify({ stopped, start: startable }, null, 2));
+      return 1;
+    }
+    const started = await ensureServerRunning(config);
+    console.log(JSON.stringify({ stopped, started }, null, 2));
+    return 0;
   }
   const current = await serverStatus(config);
   if (current.portInUse) {
@@ -247,6 +283,17 @@ async function runServer(args) {
   await server.closed;
   await clearServerPid(config, process.pid);
   return 0;
+}
+
+async function ensureBackendCanStart(config) {
+  const current = await serverStatus(config);
+  if (current.portInUse && !current.running) {
+    const error = portInUseMessage(current);
+    console.error(error);
+    console.error(JSON.stringify(current, null, 2));
+    return { error, status: current };
+  }
+  return { ok: true, status: current };
 }
 
 async function runCodexAuth(args) {

@@ -515,7 +515,11 @@ of dropping image parts silently.
 |---|---|
 | `npm start` | Start the Shimex daemon, prepare the managed app, and open it |
 | `npm run dev` | Run the server in the foreground with the managed app open (for debugging) |
-| `npm run status` | Show health, PID, and log path |
+| `npm run backend` / `npm run backend:start` | Start or reuse only the detached backend; do not open/restart `Shimex.app` |
+| `npm run backend:restart` | Restart only the detached backend; leave the managed app running |
+| `npm run backend:dev` | Run only the backend in the foreground |
+| `npm run backend:stop` | Stop only the detached backend |
+| `npm run status` / `npm run backend:status` | Show health, PID, and log path |
 | `npm run stop` | Stop the daemon |
 | `npm test` | Run the test suite |
 | `npm run check` | Run tests + doctor diagnostics |
@@ -527,7 +531,9 @@ npm run shimex -- help
 npm run shimex -- doctor               # Check Codex prereqs and config
 npm run shimex -- providers list       # List configured providers
 npm run shimex -- models list          # List discovered models
-npm run shimex -- server start         # Start the gateway server
+npm run shimex -- server ensure        # Start/reuse detached backend only
+npm run shimex -- server restart       # Restart detached backend only
+npm run shimex -- server start         # Start the gateway server in the foreground
 npm run shimex -- server stop          # Stop the gateway server
 
 # ChatGPT/Codex multi-account management
@@ -543,7 +549,9 @@ npm run shimex -- codex-auth remove <name>
 make help         # List all targets
 make check        # npm test + shimex doctor
 make test         # npm test
-make run          # Start local server
+make run          # Start local server in the foreground
+make backend      # Start/reuse detached backend only
+make backend-restart # Restart detached backend only
 make doctor       # Prerequisite diagnostics
 make providers    # List providers
 make models       # List models
@@ -561,6 +569,17 @@ npm run dev
 
 This starts the HTTP server in the foreground and opens the managed Shimex app.
 Server logs are streamed to the terminal.
+
+If `Shimex.app` is already open and you only want to cycle the gateway after
+backend/admin changes, use:
+
+```bash
+npm run backend:restart
+# or: npm run shimex -- server restart
+```
+
+That stops and starts only the detached local backend. It does not copy, patch,
+open, or quit the managed Codex app.
 
 ### Project Layout
 

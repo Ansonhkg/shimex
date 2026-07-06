@@ -57,12 +57,14 @@ describe("admin auth card runtime helpers", () => {
       "function codexRingHtml(",
       "function codexUsageLane(",
       "function codexUsageCell(",
+      "function codexResetCreditsHtml(",
       "function refreshCodexUsage()",
       "function codexFmtCountdown(",
       "function codexResetLabel(",
       "autoLoadCodexUsage()",
       "data-renew",
       "/api/codex-auths/",
+      "/credits",
       "/renew",
     ]) {
       assert.ok(js.includes(needle), `missing ${needle}`);
