@@ -6,6 +6,7 @@
   <title>Shimex — Use Any LLM Provider in Codex Desktop</title>
   <meta name="description" content="Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway. Your original Codex app stays untouched.">
   <meta name="application-name" content="Shimex">
+  <meta name="author" content="anson">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#111111">
   <meta name="google-site-verification" content="tlIW5u9-BQqIZ14AE7OrquQpdGmTDkCd4uFBjd7MX2M">
@@ -38,7 +39,18 @@
           "name": "Shimex",
           "url": "https://shimex.xyz/",
           "description": "Use your configured LLM providers in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
-          "inLanguage": "en"
+          "inLanguage": "en",
+          "publisher": { "@id": "https://anson.sh/#person" }
+        },
+        {
+          "@type": "Person",
+          "@id": "https://anson.sh/#person",
+          "name": "anson",
+          "url": "https://anson.sh/",
+          "sameAs": [
+            "https://github.com/Ansonhkg",
+            "https://x.com/ansonox"
+          ]
         },
         {
           "@type": "SoftwareApplication",
@@ -49,6 +61,8 @@
           "url": "https://shimex.xyz/",
           "image": "https://shimex.xyz/social-card.png",
           "description": "Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway.",
+          "author": { "@id": "https://anson.sh/#person" },
+          "sameAs": "https://github.com/Ansonhkg/shimex",
           "offers": {
             "@type": "Offer",
             "price": "0",
@@ -327,7 +341,7 @@
 
 <figure class="screenshot">
   <img src="screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
-  <figcaption>The local admin control plane at <code>http://127.0.0.1:18765/admin</code>.</figcaption>
+  <figcaption>The local admin control plane at <code>http://127.0.0.1:5413/admin</code>.</figcaption>
 </figure>
 
 <section id="providers">
@@ -336,7 +350,7 @@
   <ul>
     <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
     <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
-    <li>Run a local OpenAI-compatible gateway at <code>http://127.0.0.1:18765/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
+    <li>Run a local OpenAI-compatible gateway at <code>http://127.0.0.1:5413/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
     <li>Normalises Anthropic Messages, OpenAI Responses, OpenAI Chat, and Cursor Composer behind the same inbound shape. Streaming SSE everywhere; non-streaming upstreams are wrapped in a single-chunk SSE so the consumer always sees SSE.</li>
     <li>Discovers models dynamically with a written cache so normal catalog reads don&rsquo;t require a live network call; refresh is best-effort on startup.</li>
     <li>Holds capabilities to what each provider can actually do. Text-only models reject image input with a typed error instead of dropping parts silently.</li>
@@ -366,8 +380,8 @@
 cd ~/Projects/shimex
 npm install
 cp .env.example .env   # add your API keys; .env is git-ignored
-npm start              # prepares Shimex.app, launches the daemon at :18765</code></pre>
-  <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="http://127.0.0.1:18765/admin"><code>http://127.0.0.1:18765/admin</code></a>.</p>
+npm start              # prepares Shimex.app, launches the daemon at :5413</code></pre>
+  <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="http://127.0.0.1:5413/admin"><code>http://127.0.0.1:5413/admin</code></a>.</p>
 </section>
 
 <section id="cli">
@@ -424,6 +438,7 @@ npm run shimex -- models list                  # discovered models</code></pre>
   <span class="links">
     <a href="#documentation">Documentation</a>
     <a href="#cli">CLI</a>
+    <a href="https://anson.sh/" rel="author">built by anson</a>
   </span>
 </footer>
 
