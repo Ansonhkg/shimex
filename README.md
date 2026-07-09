@@ -1,3 +1,5 @@
+> **Latest update:** Shimex supports OpenAI's GPT-5.6 Sol, Terra, and Luna models in the Codex model picker.
+
 # Shimex
 
 <p align="center">
@@ -15,8 +17,6 @@
 <p align="center">
   <a href="http://shimex.xyz/">shimex.xyz</a>
 </p>
-
-> **Latest update:** Shimex supports OpenAI's GPT-5.6 Sol, Terra, and Luna models in the Codex model picker.
 
 Shimex creates a managed copy of Codex Desktop and points it at a local
 OpenAI-compatible gateway. That lets Codex use your configured providers —

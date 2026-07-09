@@ -124,6 +124,8 @@
       --line-strong: #d4d4d4;
       --link: #111111;
       --code-bg: #f5f5f5;
+      --brand: #ffac0a;
+      --brand-strong: #ff8a00;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
       font-feature-settings: "ss01", "cv11";
     }
@@ -147,6 +149,61 @@
     }
     pre code { background: transparent; padding: 0; border-radius: 0; font-size: 13px; }
 
+    /* Product update */
+    .update-banner {
+      width: 100%;
+      background: linear-gradient(90deg, var(--brand), var(--brand-strong));
+      color: #211400;
+      font-size: 14px;
+    }
+    .update-banner-inner {
+      max-width: 960px;
+      min-height: 44px;
+      margin: 0 auto;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .update-banner-link {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: inherit;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .update-banner-link:hover { text-decoration: underline; }
+    .update-banner .label {
+      flex: 0 0 auto;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #211400;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .update-banner-close {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: #211400;
+      font: inherit;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .update-banner-close:hover { background: rgba(33, 20, 0, 0.12); }
+    .update-banner-close:focus-visible { outline: 2px solid #211400; outline-offset: 2px; }
+
     .wrap {
       max-width: 720px;
       margin: 0 auto;
@@ -165,34 +222,6 @@
     .links { display: inline-flex; gap: 18px; font-size: 14px; }
     .links a { text-decoration: none; color: var(--muted); }
     .links a:hover { color: var(--fg); }
-
-    /* Product update */
-    .update-banner {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: -32px 0 40px;
-      padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 7px;
-      background: var(--code-bg);
-      color: var(--fg);
-      font-size: 14px;
-      text-decoration: none;
-    }
-    .update-banner:hover { border-color: var(--fg); text-decoration: none; }
-    .update-banner .label {
-      flex: 0 0 auto;
-      padding: 1px 6px;
-      border-radius: 999px;
-      background: var(--fg);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .update-banner .arrow { margin-left: auto; color: var(--muted); }
 
     /* Hero */
     .hero { padding: 8px 0 32px; }
@@ -308,7 +337,8 @@
     footer .links { font-size: 13px; }
 
     @media (max-width: 540px) {
-      .update-banner { align-items: flex-start; }
+      .update-banner-inner { gap: 6px; padding-left: 12px; padding-right: 8px; }
+      .update-banner-link { justify-content: flex-start; align-items: flex-start; }
       .hero h1 { font-size: 26px; }
       .hero p.tagline { font-size: 16px; }
       .sitelinks, .split-list { grid-template-columns: 1fr; }
@@ -325,6 +355,16 @@
 </head>
 <body>
 
+<aside class="update-banner" data-update-banner aria-label="Product update">
+  <div class="update-banner-inner">
+    <a class="update-banner-link" href="#providers">
+      <span class="label">New</span>
+      <span>OpenAI GPT-5.6 Sol, Terra, and Luna are now supported in the Codex model picker.</span>
+    </a>
+    <button class="update-banner-close" type="button" data-update-banner-close aria-label="Dismiss product update">&times;</button>
+  </div>
+</aside>
+
 <div class="wrap">
 
 <nav class="topbar">
@@ -339,12 +379,6 @@
     <a href="#faq">FAQ</a>
   </span>
 </nav>
-
-<a class="update-banner" href="#providers">
-  <span class="label">New</span>
-  <span>OpenAI GPT-5.6 Sol, Terra, and Luna are now supported in the Codex model picker.</span>
-  <span class="arrow" aria-hidden="true">&rarr;</span>
-</a>
 
 <header class="hero">
   <h1>Use any LLM provider in Codex Desktop &mdash; without modifying Codex.</h1>
@@ -481,6 +515,21 @@ npm run shimex -- models list                  # discovered models</code></pre>
 
 
 <script>
+  (function () {
+    var banner = document.querySelector("[data-update-banner]");
+    var close = document.querySelector("[data-update-banner-close]");
+    var key = "shimex-update-gpt-5-6-dismissed";
+    try {
+      if (sessionStorage.getItem(key) === "1") banner.hidden = true;
+    } catch (_) {}
+    if (close) {
+      close.addEventListener("click", function () {
+        banner.hidden = true;
+        try { sessionStorage.setItem(key, "1"); } catch (_) {}
+      });
+    }
+  })();
+
   // Minimal shell-script syntax highlighter.
   // Pure inline implementation; no dependencies; highlights: comments, strings,
   // variables ($FOO), flags (--foo, -x, --), and a small set of commands.
