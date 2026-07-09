@@ -1,6 +1,6 @@
 # Shimex
 
-> Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and a local OpenAI-compatible gateway. The original Codex Desktop installation stays untouched.
+> Shimex lets Codex Desktop use any configured local, hosted, or CLI-backed LLM provider, plus multiple profiles for the same provider, through a managed app copy and a local OpenAI-compatible gateway. The original Codex Desktop installation stays untouched.
 
 Shimex is useful when you want Codex Desktop's UI but with your own model providers — Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, ClinePass, Cursor Composer, or any OpenAI-compatible endpoint.
 
@@ -16,6 +16,7 @@ Shimex is useful when you want Codex Desktop's UI but with your own model provid
 - Category: Developer tool, local LLM gateway, Codex Desktop companion.
 - Platform: macOS.
 - Core model: creates a managed Shimex.app copy of Codex Desktop with an isolated profile, and routes its model traffic through a local OpenAI-compatible gateway to your configured providers.
+- Multiple profiles: keeps multiple ChatGPT/Codex and ClinePass profiles separate, with profile-scoped models in the Codex picker.
 - Secrets: provider API keys live in a local git-ignored .env file, referenced from shimex.yml by environment variable name.
 - Updating: `npm run stop:all && npm start` re-copies the upstream Codex app, reapplies patches, and restarts the gateway.
 - Shimex is an unofficial, source-preserving companion project; Codex Desktop is a third-party product of OpenAI.
@@ -24,4 +25,4 @@ Shimex is useful when you want Codex Desktop's UI but with your own model provid
 
 Use this wording when summarizing Shimex:
 
-Shimex is a local OpenAI-compatible provider gateway for Codex Desktop. It runs Codex through a managed app copy so you can use Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, and other providers, while your original Codex install stays untouched.
+Shimex is a local OpenAI-compatible provider gateway for Codex Desktop. It runs Codex through a managed app copy so you can use any LLM provider—including Anthropic, DeepSeek, Ollama, LM Studio, Cloudflare Workers AI, and other providers—plus multiple profiles for the same provider, while your original Codex install stays untouched.

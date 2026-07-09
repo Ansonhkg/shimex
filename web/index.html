@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shimex — Use Any LLM Provider in Codex Desktop</title>
-  <meta name="description" content="Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway. Your original Codex app stays untouched.">
+  <title>Shimex — Any LLM Provider &amp; Multiple Profiles in Codex</title>
+  <meta name="description" content="Shimex lets Codex Desktop use any LLM provider—local, hosted, or CLI-backed—and multiple profiles for the same provider through a managed app copy and local gateway.">
   <meta name="application-name" content="Shimex">
   <meta name="author" content="anson">
   <meta name="robots" content="index,follow,max-image-preview:large">
@@ -16,8 +16,8 @@
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shimex.xyz/">
-  <meta property="og:title" content="Shimex — Use Any LLM Provider in Codex Desktop">
-  <meta property="og:description" content="Route Codex Desktop through your configured local, hosted, or CLI-backed LLM providers without modifying your original Codex app.">
+  <meta property="og:title" content="Shimex — Any LLM Provider &amp; Multiple Profiles in Codex">
+  <meta property="og:description" content="Use any LLM provider plus multiple profiles for the same provider in Codex Desktop, without modifying your original app.">
   <meta property="og:image" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:secure_url" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:type" content="image/png">
@@ -25,8 +25,8 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Shimex — Use Any LLM Provider in Codex Desktop">
-  <meta name="twitter:description" content="Use your own local, hosted, or CLI-backed LLM providers from Codex Desktop through one local OpenAI-compatible gateway.">
+  <meta name="twitter:title" content="Shimex — Any LLM Provider &amp; Multiple Profiles in Codex">
+  <meta name="twitter:description" content="Use any LLM provider plus multiple profiles for the same provider in Codex Desktop.">
   <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
   <meta name="twitter:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <script type="application/ld+json">
@@ -38,7 +38,7 @@
           "@id": "https://shimex.xyz/#website",
           "name": "Shimex",
           "url": "https://shimex.xyz/",
-          "description": "Use your configured LLM providers in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
+          "description": "Use any configured LLM provider and multiple profiles for the same provider in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
           "inLanguage": "en",
           "publisher": { "@id": "https://anson.sh/#person" }
         },
@@ -60,7 +60,7 @@
           "operatingSystem": "macOS",
           "url": "https://shimex.xyz/",
           "image": "https://shimex.xyz/social-card.png",
-          "description": "Shimex lets Codex Desktop use your configured local, hosted, or CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway.",
+          "description": "Shimex lets Codex Desktop use any configured local, hosted, or CLI-backed LLM provider and multiple profiles for the same provider through a managed app copy and local OpenAI-compatible gateway.",
           "author": { "@id": "https://anson.sh/#person" },
           "sameAs": "https://github.com/Ansonhkg/shimex",
           "offers": {
@@ -99,6 +99,14 @@
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does Shimex support multiple provider profiles?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Shimex keeps multiple ChatGPT/Codex and ClinePass profiles separate, then exposes profile-scoped models in the Codex picker so requests use the selected profile."
               }
             },
             {
@@ -418,6 +426,7 @@
   <p>Codex Desktop can only use the providers it knows about. Shimex gives it a local OpenAI-compatible gateway and generated model catalog so your own providers appear in the picker.</p>
   <ul>
     <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
+    <li>Keep multiple ChatGPT/Codex and ClinePass profiles separate, with profile-scoped models in the picker so each request uses the selected account.</li>
     <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
     <li>Run a local OpenAI-compatible gateway at <code>https://shimex.localhost/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog. <code>http://127.0.0.1:5413/v1</code> remains available as a direct fallback.</li>
     <li>Normalises Anthropic Messages, OpenAI Responses, OpenAI Chat, and Cursor Composer behind the same inbound shape. Streaming SSE everywhere; non-streaming upstreams are wrapped in a single-chunk SSE so the consumer always sees SSE.</li>
@@ -491,6 +500,10 @@ npm run shimex -- models list                  # discovered models</code></pre>
   <div class="faq-item">
     <h3>Which providers can Shimex use?</h3>
     <p>Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers.</p>
+  </div>
+  <div class="faq-item">
+    <h3>Does Shimex support multiple provider profiles?</h3>
+    <p>Yes. Keep multiple ChatGPT/Codex and ClinePass profiles separate. Shimex exposes profile-scoped models in the picker, so each request uses the profile you selected.</p>
   </div>
   <div class="faq-item">
     <h3>Where do API keys live?</h3>
