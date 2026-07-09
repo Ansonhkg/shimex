@@ -166,6 +166,34 @@
     .links a { text-decoration: none; color: var(--muted); }
     .links a:hover { color: var(--fg); }
 
+    /* Product update */
+    .update-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: -32px 0 40px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--code-bg);
+      color: var(--fg);
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .update-banner:hover { border-color: var(--fg); text-decoration: none; }
+    .update-banner .label {
+      flex: 0 0 auto;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--fg);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .update-banner .arrow { margin-left: auto; color: var(--muted); }
+
     /* Hero */
     .hero { padding: 8px 0 32px; }
     .hero h1 {
@@ -280,6 +308,7 @@
     footer .links { font-size: 13px; }
 
     @media (max-width: 540px) {
+      .update-banner { align-items: flex-start; }
       .hero h1 { font-size: 26px; }
       .hero p.tagline { font-size: 16px; }
       .sitelinks, .split-list { grid-template-columns: 1fr; }
@@ -310,6 +339,12 @@
     <a href="#faq">FAQ</a>
   </span>
 </nav>
+
+<a class="update-banner" href="#providers">
+  <span class="label">New</span>
+  <span>OpenAI GPT-5.6 Sol, Terra, and Luna are now supported in the Codex model picker.</span>
+  <span class="arrow" aria-hidden="true">&rarr;</span>
+</a>
 
 <header class="hero">
   <h1>Use any LLM provider in Codex Desktop &mdash; without modifying Codex.</h1>
