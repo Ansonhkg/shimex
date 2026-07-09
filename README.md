@@ -50,7 +50,7 @@ and external CLI sessions. It:
   original untouched).
 - Generates an isolated Codex profile and model catalog that points at Shimex's
   local API server.
-- Exposes an OpenAI-compatible HTTP/SSE endpoint at `http://127.0.0.1:18765/v1`.
+- Exposes an OpenAI-compatible HTTP/SSE endpoint at `http://127.0.0.1:5413/v1`.
 - Routes requests to your configured providers — hosted APIs, local model
   servers, OpenAI-compatible endpoints, or external CLI tools — normalising each
   provider's protocol behind a single surface.
@@ -153,7 +153,7 @@ src/
 
 ### API Surface
 
-Shimex exposes an OpenAI-compatible HTTP/SSE server at `http://127.0.0.1:18765`.
+Shimex exposes an OpenAI-compatible HTTP/SSE server at `http://127.0.0.1:5413`.
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -304,9 +304,9 @@ npm start
 
 This prepares the managed `Shimex.app`, writes the isolated Shimex Codex profile,
 starts the local gateway as a detached process, and opens the managed app. The
-gateway listens at `http://127.0.0.1:18765`.
+gateway listens at `http://127.0.0.1:5413`.
 
-Open the admin UI at `http://127.0.0.1:18765/admin`.
+Open the admin UI at `http://127.0.0.1:5413/admin` (`5413` reads as “SHIE” in leetspeak).
 
 ### Verify
 
@@ -344,7 +344,7 @@ project:
 
 runtime:
   host: 127.0.0.1
-  port: 18765
+  port: 5413
   home: ~/.shimex
 
 codex:

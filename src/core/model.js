@@ -22,11 +22,36 @@ export function normalizeModel(providerId, raw, index = 0, providerDisplayName =
     maxOutputTokens: raw.maxOutputTokens || raw.max_output_tokens || null,
     inputModalities,
     reasoningLevel: raw.reasoningLevel || raw.reasoning_level || "medium",
+    supportedReasoningLevels: normalizeReasoningLevels(raw.supportedReasoningLevels || raw.supported_reasoning_levels),
+    supportsReasoningSummaries: raw.supportsReasoningSummaries ?? raw.supports_reasoning_summaries ?? false,
+    defaultReasoningSummary: raw.defaultReasoningSummary || raw.default_reasoning_summary || "none",
+    supportVerbosity: raw.supportVerbosity ?? raw.support_verbosity ?? false,
+    defaultVerbosity: raw.defaultVerbosity || raw.default_verbosity || "low",
+    supportsImageDetailOriginal: raw.supportsImageDetailOriginal ?? raw.supports_image_detail_original ?? null,
+    effectiveContextWindowPercent: Number(raw.effectiveContextWindowPercent || raw.effective_context_window_percent || 0) || null,
+    additionalSpeedTiers: normalizeStringArray(raw.additionalSpeedTiers || raw.additional_speed_tiers),
+    serviceTiers: Array.isArray(raw.serviceTiers || raw.service_tiers) ? raw.serviceTiers || raw.service_tiers : [],
+    useResponsesLite: raw.useResponsesLite ?? raw.use_responses_lite ?? null,
+    toolMode: raw.toolMode || raw.tool_mode || "",
     priority: raw.priority || Math.max(1, 1000 - index),
     profile: typeof raw.profile === "string" ? raw.profile : "",
     accountId: typeof raw.accountId === "string" ? raw.accountId : "",
     raw,
   };
+}
+
+function normalizeReasoningLevels(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item) => item && typeof item.effort === "string").map((item) => ({
+    effort: item.effort,
+    description: typeof item.description === "string" ? item.description : "",
+  }));
+}
+
+function normalizeStringArray(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item) : [];
 }
 
 export function normalizeModalities(value) {

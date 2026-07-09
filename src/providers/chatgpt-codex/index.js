@@ -9,13 +9,25 @@ import { expandHome } from "../../core/paths.js";
 
 const DEFAULT_CODEX_MODEL_CACHE = "~/.codex/models_cache.json";
 const DEFAULT_CODEX_MODEL_IDS = [
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
   "gpt-5.5",
   "gpt-5.4",
   "gpt-5.4-mini",
   "gpt-5.3-codex-spark",
 ];
 
+const FAST_SERVICE_TIER = {
+  id: "priority",
+  name: "Fast",
+  description: "1.5x speed, increased usage",
+};
+
 const FALLBACK_CODEX_MODELS = [
+  codexModel("gpt-5.6-sol", "GPT-5.6-Sol", 372000, ["text", "image"], "low", 20030, codex56Metadata(["low", "medium", "high", "xhigh", "max", "ultra"])),
+  codexModel("gpt-5.6-terra", "GPT-5.6-Terra", 372000, ["text", "image"], "medium", 20020, codex56Metadata(["low", "medium", "high", "xhigh", "max", "ultra"])),
+  codexModel("gpt-5.6-luna", "GPT-5.6-Luna", 372000, ["text", "image"], "medium", 20010, codex56Metadata(["low", "medium", "high", "xhigh", "max"])),
   codexModel("gpt-5.5", "GPT-5.5", 272000, ["text", "image"], "medium", 20000),
   codexModel("gpt-5.4", "GPT-5.4", 272000, ["text", "image"], "medium", 19990),
   codexModel("gpt-5.4-mini", "GPT-5.4-Mini", 272000, ["text", "image"], "medium", 19980),
@@ -96,24 +108,25 @@ async function readCodexModelCache(config) {
     return null;
   }
   const sourceModels = Array.isArray(payload?.models) ? payload.models : Array.isArray(payload) ? payload : [];
-  const models = DEFAULT_CODEX_MODEL_IDS.flatMap((id, index) => {
+  const models = DEFAULT_CODEX_MODEL_IDS.map((id, index) => {
     const raw = sourceModels.find((model) => model?.slug === id || model?.id === id || model?.model === id);
     if (!raw) {
-      return [];
+      return FALLBACK_CODEX_MODELS[index];
     }
-    return [codexModel(
+    return codexModel(
       id,
       raw.displayName || raw.display_name || raw.name || id,
       raw.contextWindow || raw.context_window || raw.max_context_window || FALLBACK_CODEX_MODELS[index].contextWindow,
       raw.inputModalities || raw.input_modalities || FALLBACK_CODEX_MODELS[index].inputModalities,
       raw.reasoningLevel || raw.reasoning_level || raw.default_reasoning_level || FALLBACK_CODEX_MODELS[index].reasoningLevel,
       20000 - (index * 10),
-    )];
+      codexCacheMetadata(raw),
+    );
   });
-  return models.length ? models : null;
+  return models;
 }
 
-function codexModel(upstreamModel, displayName, contextWindow, inputModalities, reasoningLevel, priority) {
+function codexModel(upstreamModel, displayName, contextWindow, inputModalities, reasoningLevel, priority, metadata = {}) {
   return {
     slug: upstreamModel.replace(/\./g, "-"),
     displayName,
@@ -122,6 +135,47 @@ function codexModel(upstreamModel, displayName, contextWindow, inputModalities, 
     inputModalities,
     reasoningLevel,
     priority,
+    ...metadata,
+  };
+}
+
+function codexCacheMetadata(raw) {
+  return {
+    supportedReasoningLevels: raw.supportedReasoningLevels || raw.supported_reasoning_levels || [],
+    supportsReasoningSummaries: raw.supportsReasoningSummaries ?? raw.supports_reasoning_summaries ?? false,
+    defaultReasoningSummary: raw.defaultReasoningSummary || raw.default_reasoning_summary || "none",
+    supportVerbosity: raw.supportVerbosity ?? raw.support_verbosity ?? false,
+    defaultVerbosity: raw.defaultVerbosity || raw.default_verbosity || "low",
+    supportsImageDetailOriginal: raw.supportsImageDetailOriginal ?? raw.supports_image_detail_original ?? null,
+    effectiveContextWindowPercent: raw.effectiveContextWindowPercent || raw.effective_context_window_percent || null,
+    additionalSpeedTiers: raw.additionalSpeedTiers || raw.additional_speed_tiers || [],
+    serviceTiers: raw.serviceTiers || raw.service_tiers || [],
+    useResponsesLite: raw.useResponsesLite ?? raw.use_responses_lite ?? null,
+    toolMode: raw.toolMode || raw.tool_mode || "",
+  };
+}
+
+function codex56Metadata(efforts) {
+  const descriptions = {
+    low: "Fast responses with lighter reasoning",
+    medium: "Balances speed and reasoning depth for everyday tasks",
+    high: "Greater reasoning depth for complex problems",
+    xhigh: "Extra high reasoning depth for complex problems",
+    max: "Maximum reasoning depth for the hardest problems",
+    ultra: "Maximum reasoning with automatic task delegation",
+  };
+  return {
+    supportedReasoningLevels: efforts.map((effort) => ({ effort, description: descriptions[effort] })),
+    supportsReasoningSummaries: true,
+    defaultReasoningSummary: "none",
+    supportVerbosity: true,
+    defaultVerbosity: "low",
+    supportsImageDetailOriginal: true,
+    effectiveContextWindowPercent: 95,
+    additionalSpeedTiers: ["fast"],
+    serviceTiers: [FAST_SERVICE_TIER],
+    useResponsesLite: true,
+    toolMode: "code_mode_only",
   };
 }
 

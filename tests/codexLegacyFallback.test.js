@@ -14,15 +14,23 @@ describe("legacy single-account backward compatibility", () => {
       tokens: { access_token: "fake-legacy-token", account_id: "legacy_acc" },
     }));
     const config = {
-      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 18765 },
+      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 5413 },
       providers: [{
         id: "chatgpt-codex", enabled: true, models: [],
-        options: { auth_path: authPath, legacy_single_account: true },
+        options: { auth_path: authPath, models_cache_path: join(root, "missing-model-cache.json"), legacy_single_account: true },
       }],
     };
     const models = await discoverModels(config);
-    assert.equal(models.length, 4);
-    assert.deepEqual(models.map((m) => m.slug), ["gpt-5-5", "gpt-5-4", "gpt-5-4-mini", "gpt-5-3-codex-spark"]);
+    assert.equal(models.length, 7);
+    assert.deepEqual(models.map((m) => m.slug), [
+      "gpt-5-6-sol",
+      "gpt-5-6-terra",
+      "gpt-5-6-luna",
+      "gpt-5-5",
+      "gpt-5-4",
+      "gpt-5-4-mini",
+      "gpt-5-3-codex-spark",
+    ]);
   });
 
   test("discoverModels ignores ~/.codex/auth.json when legacy_single_account is false", async () => {
@@ -32,7 +40,7 @@ describe("legacy single-account backward compatibility", () => {
       tokens: { access_token: "fake-legacy-token", account_id: "legacy_acc" },
     }));
     const config = {
-      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 18765 },
+      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 5413 },
       providers: [{
         id: "chatgpt-codex", enabled: true, models: [],
         options: { auth_path: authPath, legacy_single_account: false },
@@ -49,7 +57,7 @@ describe("legacy single-account backward compatibility", () => {
       tokens: { access_token: "fake-legacy-token-abcdef", account_id: "legacy_acc_xyz" },
     }));
     const config = {
-      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 18765 },
+      runtime: { home: join(root, "no-such-dir"), host: "127.0.0.1", port: 5413 },
       providers: [{
         id: "chatgpt-codex", enabled: true, models: [],
         options: { auth_path: authPath, legacy_single_account: true },

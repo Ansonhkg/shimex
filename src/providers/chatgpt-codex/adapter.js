@@ -11,6 +11,7 @@ import { loadAuthStore } from "./index.js";
 import { resolveProfileForSlug, authStorePath } from "./authStore.js";
 
 const CHATGPT_CODEX_BASE = "https://chatgpt.com/backend-api/codex";
+const CODEX_USER_AGENT = "codex_cli_rs/0.144.0-alpha.4 (Shimex) unknown";
 
 export async function handleChatGptCodexRequest(route, pathname, body, options = {}) {
   const unsupported = validateModelInput(route, body);
@@ -50,7 +51,7 @@ async function postChatGpt(route, suffix, body, options) {
   const upstream = await options.fetch(`${CHATGPT_CODEX_BASE}${suffix}`, {
     method: "POST",
     headers: {
-      ...buildUpstreamHeaders(options.profile, upstreamBody.stream),
+      ...buildUpstreamHeaders(options.profile, upstreamBody.stream, route.model),
       session_id: readSessionId(options.headers),
     },
     body: JSON.stringify(upstreamBody),
@@ -77,15 +78,17 @@ async function postChatGpt(route, suffix, body, options) {
   return jsonResult(payload);
 }
 
-function buildUpstreamHeaders(profile, stream) {
+function buildUpstreamHeaders(profile, stream, model) {
   return {
     authorization: `Bearer ${profile.accessToken}`,
     "content-type": "application/json",
     accept: stream ? "text/event-stream" : "application/json",
-    "openai-beta": "responses=2026-02-06",
     originator: "codex_cli_rs",
     "chatgpt-account-id": profile.accountId || "",
-    "user-agent": "shimex",
+    "user-agent": CODEX_USER_AGENT,
+    ...(model.useResponsesLite
+      ? { "x-openai-internal-codex-responses-lite": "true" }
+      : {}),
   };
 }
 

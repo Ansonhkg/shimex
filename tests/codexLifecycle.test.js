@@ -53,7 +53,7 @@ function testConfig({ sourceApp, managedApp, runtimeHome, profileHome }) {
   return {
     runtime: {
       host: "127.0.0.1",
-      port: 18765,
+      port: 5413,
       home: runtimeHome,
     },
     codex: {

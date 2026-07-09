@@ -208,27 +208,52 @@ describe("chatgpt-codex provider model discovery", () => {
   test("emits default-profile models plus profile-scoped rows without public account metadata", async () => {
     const root = await freshRoot();
     const path = await seedProfiles(root, ["personal", "work"]);
+    const cachePath = join(root, "models_cache.json");
+    await writeFile(cachePath, JSON.stringify({
+      models: [
+        { slug: "gpt-5.6-sol", display_name: "GPT-5.6-Sol", context_window: 372000, input_modalities: ["text", "image"], default_reasoning_level: "low", supported_reasoning_levels: [{ effort: "low" }, { effort: "max" }, { effort: "ultra" }], additional_speed_tiers: ["fast"] },
+        { slug: "gpt-5.6-terra", display_name: "GPT-5.6-Terra", context_window: 372000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", context_window: 372000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.5", display_name: "GPT-5.5", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.4", display_name: "GPT-5.4", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.4-mini", display_name: "GPT-5.4-Mini", context_window: 272000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.3-codex-spark", display_name: "GPT-5.3-Codex-Spark", context_window: 128000, input_modalities: ["text"] },
+      ],
+    }));
     const config = {
-      runtime: { host: "127.0.0.1", port: 18765, home: root },
-      providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path } }],
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path, models_cache_path: cachePath } }],
     };
     const models = await discoverModels(config);
-    assert.equal(models.length, 12);
+    assert.equal(models.length, 21);
     const slugs = models.map((m) => m.slug).sort();
     assert.deepEqual(slugs, [
       "gpt-5-3-codex-spark",
       "gpt-5-4",
       "gpt-5-4-mini",
       "gpt-5-5",
+      "gpt-5-6-luna",
+      "gpt-5-6-sol",
+      "gpt-5-6-terra",
       "personal-gpt-5-3-codex-spark",
       "personal-gpt-5-4",
       "personal-gpt-5-4-mini",
       "personal-gpt-5-5",
+      "personal-gpt-5-6-luna",
+      "personal-gpt-5-6-sol",
+      "personal-gpt-5-6-terra",
       "work-gpt-5-3-codex-spark",
       "work-gpt-5-4",
       "work-gpt-5-4-mini",
       "work-gpt-5-5",
+      "work-gpt-5-6-luna",
+      "work-gpt-5-6-sol",
+      "work-gpt-5-6-terra",
     ]);
+    const defaultSol = models.find((m) => m.slug === "gpt-5-6-sol");
+    assert.equal(defaultSol.upstreamModel, "gpt-5.6-sol");
+    assert.equal(defaultSol.contextWindow, 372000);
+    assert.deepEqual(defaultSol.supportedReasoningLevels.map((level) => level.effort), ["low", "max", "ultra"]);
     const defaultGpt55 = models.find((m) => m.slug === "gpt-5-5");
     assert.equal(defaultGpt55.profile, "personal");
     assert.equal(defaultGpt55.accountId, "");
@@ -247,6 +272,8 @@ describe("chatgpt-codex provider model discovery", () => {
     assert.equal(workScoped.displayName, "work: GPT-5.5");
 
     const catalog = generateCodexCatalog(models);
+    assert.equal(catalog.models.find((m) => m.slug === "gpt-5-6-sol").display_name, "ChatGPT Codex: GPT-5.6-Sol");
+    assert.deepEqual(catalog.models.find((m) => m.slug === "gpt-5-6-sol").additional_speed_tiers, ["fast"]);
     assert.equal(catalog.models.find((m) => m.slug === "gpt-5-5").display_name, "ChatGPT Codex: GPT-5.5");
     assert.equal(catalog.models.find((m) => m.slug === "work-gpt-5-5").display_name, "work: GPT-5.5");
   });
@@ -254,7 +281,7 @@ describe("chatgpt-codex provider model discovery", () => {
   test("returns [] when no auth reference is set and no legacy file exists", async () => {
     const root = await freshRoot();
     const config = {
-      runtime: { host: "127.0.0.1", port: 18765, home: root },
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
       providers: [{
         id: "chatgpt-codex", enabled: true, models: [],
         options: { auths_path: join(root, "missing.json"), legacy_single_account: false },
@@ -277,7 +304,7 @@ describe("chatgpt-codex request adapter", () => {
     const root = await freshRoot();
     const path = await seedProfiles(root, ["personal", "work"]);
     const config = {
-      runtime: { host: "127.0.0.1", port: 18765, home: root },
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
       providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path } }],
     };
     const models = await discoverModels(config);
@@ -306,18 +333,49 @@ describe("chatgpt-codex request adapter", () => {
       assert.ok(bearer.startsWith(expectedTokens[slug]), `bad token for ${slug}: ${bearer}`);
       assert.equal(call.init.headers["chatgpt-account-id"], expectedAccounts[slug]);
       assert.equal(call.init.headers["originator"], "codex_cli_rs");
-      assert.equal(call.init.headers["openai-beta"], "responses=2026-02-06");
+      assert.match(call.init.headers["user-agent"], /^codex_cli_rs\/0\.144\.0-alpha\.4 /);
+      assert.equal(call.init.headers["openai-beta"], undefined);
+      assert.equal(call.init.headers["x-openai-internal-codex-responses-lite"], undefined);
       assert.equal(result.status, 200);
       const out = JSON.parse(result.body);
       assert.equal(out.model, slug);
     }
   });
 
+  test("enables Responses Lite for models that require it", async () => {
+    const root = await freshRoot();
+    const path = await seedProfiles(root, ["personal"]);
+    const config = {
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path } }],
+    };
+    let captured = null;
+    const result = await handleProviderModelRequest(config, "/v1/responses", {
+      model: "personal-gpt-5-6-luna",
+      input: "hi",
+      stream: false,
+    }, {
+      fetch: async (url, init) => {
+        captured = { url, init };
+        return new Response(JSON.stringify({
+          id: "resp_56", model: "gpt-5.6-luna",
+          output: [{ id: "msg_56", type: "message", role: "assistant", content: [{ type: "output_text", text: "ok", annotations: [] }] }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+
+    assert.equal(result.status, 200);
+    assert.equal(captured.url, "https://chatgpt.com/backend-api/codex/responses");
+    assert.equal(JSON.parse(captured.init.body).model, "gpt-5.6-luna");
+    assert.equal(captured.init.headers["x-openai-internal-codex-responses-lite"], "true");
+    assert.equal(captured.init.headers["openai-beta"], undefined);
+  });
+
   test("routes unqualified default models through the default auth profile", async () => {
     const root = await freshRoot();
     const path = await seedProfiles(root, ["personal", "work"]);
     const config = {
-      runtime: { host: "127.0.0.1", port: 18765, home: root },
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
       providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path } }],
     };
     let captured = null;
@@ -342,7 +400,7 @@ describe("chatgpt-codex request adapter", () => {
     const root = await freshRoot();
     const path = await seedProfiles(root, ["personal"]);
     const config = {
-      runtime: { host: "127.0.0.1", port: 18765, home: root },
+      runtime: { host: "127.0.0.1", port: 5413, home: root },
       providers: [{ id: "chatgpt-codex", enabled: true, models: [], options: { auths_path: path } }],
     };
     const result = await handleProviderModelRequest(config, "/v1/responses", { model: "unknown-gpt-5-5", input: "hi", stream: false }, { fetch: () => { throw new Error("no fetch expected"); } });
@@ -502,7 +560,7 @@ describe("codex-auth HTTP API", () => {
     const root = await freshRoot();
     const path = join(root, "codex-auths.json");
     const routes = createCodexAuthRoutes({
-      runtime: { home: root, host: "127.0.0.1", port: 18765 },
+      runtime: { home: root, host: "127.0.0.1", port: 5413 },
       providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path, legacy_single_account: false } }],
     });
     const list = await routes.route(makeRequest("GET"), new URL("http://x/api/codex-auths"));

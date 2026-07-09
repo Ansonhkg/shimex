@@ -99,7 +99,7 @@ describe("Shimex scaffold", () => {
 
   test("loads shimex.yml provider lists", async () => {
     const config = await loadShimexConfig();
-    assert.equal(config.runtime.port, 18765);
+    assert.equal(config.runtime.port, 5413);
     assert.equal(config.codex.seedLocalAuth, true);
     assert.equal(config.codex.localAuthKey, "shimex-local-api-key");
     assert.equal(config.codex.bundleIdentifier, "xyz.shimex.app");
@@ -132,6 +132,23 @@ describe("Shimex scaffold", () => {
     await writeFile(authPath, JSON.stringify({ tokens: { access_token: "codex-token" } }));
     await writeFile(cachePath, JSON.stringify({
       models: [
+        {
+          slug: "gpt-5.6-sol",
+          display_name: "GPT-5.6-Sol",
+          context_window: 372000,
+          input_modalities: ["text", "image"],
+          default_reasoning_level: "low",
+          supported_reasoning_levels: [
+            { effort: "low", description: "Fast responses with lighter reasoning" },
+            { effort: "max", description: "Maximum reasoning depth for the hardest problems" },
+            { effort: "ultra", description: "Maximum reasoning with automatic task delegation" },
+          ],
+          supports_image_detail_original: true,
+          additional_speed_tiers: ["fast"],
+          service_tiers: [{ id: "priority", name: "Fast", description: "1.5x speed, increased usage" }],
+        },
+        { slug: "gpt-5.6-terra", display_name: "GPT-5.6-Terra", context_window: 372000, input_modalities: ["text", "image"] },
+        { slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", context_window: 372000, input_modalities: ["text", "image"] },
         { slug: "gpt-5.5", display_name: "GPT-5.5", context_window: 272000, input_modalities: ["text", "image"] },
         { slug: "gpt-5.4", display_name: "GPT-5.4", context_window: 272000, input_modalities: ["text", "image"] },
         { slug: "gpt-5.4-mini", display_name: "GPT-5.4-Mini", context_window: 272000, input_modalities: ["text", "image"] },
@@ -148,7 +165,51 @@ describe("Shimex scaffold", () => {
         options: { models_cache_path: cachePath },
       }],
     });
-    assert.deepEqual(models.map((model) => model.slug), ["gpt-5-5", "gpt-5-4", "gpt-5-4-mini", "gpt-5-3-codex-spark"]);
+    assert.deepEqual(models.map((model) => model.slug), [
+      "gpt-5-6-sol",
+      "gpt-5-6-terra",
+      "gpt-5-6-luna",
+      "gpt-5-5",
+      "gpt-5-4",
+      "gpt-5-4-mini",
+      "gpt-5-3-codex-spark",
+    ]);
     assert.equal(models[0]?.providerDisplayName, "ChatGPT Codex");
+    const sol = codexCatalogEntry(models[0]);
+    assert.equal(sol.context_window, 372000);
+    assert.equal(sol.default_reasoning_level, "low");
+    assert.deepEqual(sol.supported_reasoning_levels.map((level) => level.effort), ["low", "max", "ultra"]);
+    assert.deepEqual(sol.additional_speed_tiers, ["fast"]);
+    assert.equal(sol.service_tiers[0]?.id, "priority");
+  });
+
+  test("fills known Codex models when the dynamic cache is temporarily partial", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-model-cache-"));
+    const cachePath = join(root, "models_cache.json");
+    await writeFile(cachePath, JSON.stringify({
+      models: [{ slug: "gpt-5.5", display_name: "GPT-5.5", context_window: 272000, input_modalities: ["text", "image"] }],
+    }));
+    const models = await discoverModels({
+      providers: [{
+        id: "chatgpt-codex",
+        enabled: true,
+        models: [],
+        options: { models_cache_path: cachePath, show_without_auth: true },
+      }],
+    });
+    assert.deepEqual(models.slice(0, 3).map((model) => model.slug), [
+      "gpt-5-6-sol",
+      "gpt-5-6-terra",
+      "gpt-5-6-luna",
+    ]);
+    assert.equal(models[0].contextWindow, 372000);
+    assert.deepEqual(models[0].supportedReasoningLevels.map((level) => level.effort), [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra",
+    ]);
   });
 });

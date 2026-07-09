@@ -17,8 +17,8 @@ const MODEL_PICKER_PATCH = {
 };
 const SIDEBAR_RECENT_THREADS_PATCH = {
   name: "sidebar-recent-thread-provider-filter",
-  already: /async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),modelProviders:\[\],archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\};return this\.params\.requestClient\.sendRequest\(`thread\/list`,[A-Za-z_$][\w$]*\)\}/,
-  match: /(async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),)modelProviders:null(,archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\};return this\.params\.requestClient\.sendRequest\(`thread\/list`,[A-Za-z_$][\w$]*\)\})/,
+  already: /async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),modelProviders:\[\],archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\}/,
+  match: /(async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),)modelProviders:null(,archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\})/,
   replace: "$1modelProviders:[]$2",
 };
 const BUNDLE_PATCHES = [MODEL_PICKER_PATCH, SIDEBAR_RECENT_THREADS_PATCH];
