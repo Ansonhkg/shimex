@@ -410,7 +410,7 @@
 
 <figure class="screenshot">
   <img src="screenshot.png" alt="Shimex admin control plane showing providers, models, and managed-app controls">
-  <figcaption>The local admin control plane at <code>http://127.0.0.1:5413/admin</code>.</figcaption>
+  <figcaption>The local admin control plane at <code>https://shimex.localhost/admin</code> (with <code>http://127.0.0.1:5413/admin</code> as fallback).</figcaption>
 </figure>
 
 <section id="providers">
@@ -419,7 +419,7 @@
   <ul>
     <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
     <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
-    <li>Run a local OpenAI-compatible gateway at <code>http://127.0.0.1:5413/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog.</li>
+    <li>Run a local OpenAI-compatible gateway at <code>https://shimex.localhost/v1</code>: <code>/v1/chat/completions</code>, <code>/v1/responses</code>, <code>/v1/models</code>, and a Codex picker catalog. <code>http://127.0.0.1:5413/v1</code> remains available as a direct fallback.</li>
     <li>Normalises Anthropic Messages, OpenAI Responses, OpenAI Chat, and Cursor Composer behind the same inbound shape. Streaming SSE everywhere; non-streaming upstreams are wrapped in a single-chunk SSE so the consumer always sees SSE.</li>
     <li>Discovers models dynamically with a written cache so normal catalog reads don&rsquo;t require a live network call; refresh is best-effort on startup.</li>
     <li>Holds capabilities to what each provider can actually do. Text-only models reject image input with a typed error instead of dropping parts silently.</li>
@@ -449,8 +449,8 @@
 cd ~/Projects/shimex
 npm install
 cp .env.example .env   # add your API keys; .env is git-ignored
-npm start              # prepares Shimex.app, launches the daemon at :5413</code></pre>
-  <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="http://127.0.0.1:5413/admin"><code>http://127.0.0.1:5413/admin</code></a>.</p>
+npm start              # prepares Shimex.app and launches the named local gateway</code></pre>
+  <p>Then open the managed <code>Shimex.app</code> and the admin UI at <a href="https://shimex.localhost/admin"><code>https://shimex.localhost/admin</code></a>. The direct fallback is <code>http://127.0.0.1:5413/admin</code>.</p>
 </section>
 
 <section id="cli">

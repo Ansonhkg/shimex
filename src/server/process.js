@@ -10,7 +10,7 @@ export async function ensureServerRunning(config) {
   const paths = serverPaths(config);
   if (current.ok) {
     const pid = await readServerPid(paths.pidPath);
-    return { started: false, url: current.url, pid: pid.pid, pidAlive: pid.alive, pidPath: paths.pidPath };
+    return { started: false, url: current.url, publicUrl: publicServerUrl(config), pid: pid.pid, pidAlive: pid.alive, pidPath: paths.pidPath };
   }
   mkdirSync(dirname(paths.logPath), { recursive: true });
   const out = openSync(paths.logPath, "a");
@@ -33,7 +33,7 @@ export async function ensureServerRunning(config) {
   child.unref();
   closeSync(out);
   await waitForServer(config);
-  return { started: true, url: serverUrl(config), logPath: paths.logPath, pid: child.pid, pidPath: paths.pidPath };
+  return { started: true, url: serverUrl(config), publicUrl: publicServerUrl(config), logPath: paths.logPath, pid: child.pid, pidPath: paths.pidPath };
 }
 
 export async function serverHealth(config) {
@@ -59,6 +59,7 @@ export async function serverStatus(config) {
     running: health.ok,
     portInUse,
     url: serverUrl(config),
+    publicUrl: publicServerUrl(config),
     health,
     pid: pid.pid,
     pidAlive: pid.alive,
@@ -237,4 +238,8 @@ function isPortInUse(config) {
 
 export function serverUrl(config) {
   return `http://${config.runtime.host}:${config.runtime.port}`;
+}
+
+export function publicServerUrl(config) {
+  return config.runtime.publicUrl || serverUrl(config);
 }

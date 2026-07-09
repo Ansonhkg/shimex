@@ -100,6 +100,7 @@ describe("Shimex scaffold", () => {
   test("loads shimex.yml provider lists", async () => {
     const config = await loadShimexConfig();
     assert.equal(config.runtime.port, 5413);
+    assert.equal(config.runtime.publicUrl, "https://shimex.localhost");
     assert.equal(config.codex.seedLocalAuth, true);
     assert.equal(config.codex.localAuthKey, "shimex-local-api-key");
     assert.equal(config.codex.bundleIdentifier, "xyz.shimex.app");
@@ -109,6 +110,21 @@ describe("Shimex scaffold", () => {
     assert.ok(config.providers.find((provider) => provider.id === "deepseek")?.models.some((model) => model.slug === "deepseek-v4-pro"));
     assert.ok(config.providers.find((provider) => provider.id === "cloudflare-workers-ai")?.models.some((model) => model.slug === "cloudflare-glm-5-2"));
     assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, true);
+  });
+
+  test("allows SHIMEX_PUBLIC_URL to select the direct gateway fallback", async () => {
+    const previous = process.env.SHIMEX_PUBLIC_URL;
+    process.env.SHIMEX_PUBLIC_URL = "http://127.0.0.1:5413";
+    try {
+      const config = await loadShimexConfig();
+      assert.equal(config.runtime.publicUrl, "http://127.0.0.1:5413");
+    } finally {
+      if (previous == null) {
+        delete process.env.SHIMEX_PUBLIC_URL;
+      } else {
+        process.env.SHIMEX_PUBLIC_URL = previous;
+      }
+    }
   });
 
   test("hides ChatGPT Codex models when external auth is unavailable", async () => {

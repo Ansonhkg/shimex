@@ -20,6 +20,7 @@ export function normalizeConfig(raw) {
     runtime: {
       host: raw.runtime?.host || "127.0.0.1",
       port: Number(process.env.SHIMEX_PORT || raw.runtime?.port || 5413),
+      publicUrl: normalizePublicUrl(process.env.SHIMEX_PUBLIC_URL ?? raw.runtime?.public_url ?? raw.runtime?.publicUrl),
       home: expandHome(raw.runtime?.home || "~/.shimex"),
     },
     codex: {
@@ -35,6 +36,18 @@ export function normalizeConfig(raw) {
     },
     providers: (raw.providers || []).map((provider) => normalizeProviderConfig(provider)),
   };
+}
+
+function normalizePublicUrl(value) {
+  const raw = expandEnv(String(value || "")).trim().replace(/\/+$/, "");
+  if (!raw) {
+    return "";
+  }
+  const url = new URL(raw);
+  if (!/^https?:$/.test(url.protocol) || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error(`runtime.public_url must be an http(s) origin: ${raw}`);
+  }
+  return url.origin;
 }
 
 function normalizeProjectPath(value) {

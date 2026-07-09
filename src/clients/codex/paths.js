@@ -28,7 +28,7 @@ export function codexConfigText(config, defaultModelSlug) {
     "",
     `[model_providers.${providerName}]`,
     'name = "Shimex"',
-    `base_url = "http://${config.runtime.host}:${config.runtime.port}/v1"`,
+    `base_url = "${tomlEscape(gatewayUrl(config))}/v1"`,
     'wire_api = "responses"',
     'experimental_bearer_token = "dummy"',
     "request_max_retries = 3",
@@ -36,6 +36,10 @@ export function codexConfigText(config, defaultModelSlug) {
     "stream_idle_timeout_ms = 600000",
     "",
   ].join("\n");
+}
+
+function gatewayUrl(config) {
+  return config.runtime.publicUrl || `http://${config.runtime.host}:${config.runtime.port}`;
 }
 
 function tomlEscape(value) {

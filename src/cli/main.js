@@ -9,7 +9,7 @@ import { codexDoctor } from "../clients/codex/doctor.js";
 import { generateCodexCatalog } from "../clients/codex/catalog.js";
 import { installCodexClient, openCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { resolveCodexPaths } from "../clients/codex/paths.js";
-import { clearServerPid, ensureServerRunning, serverStatus, stopServer, writeServerPid } from "../server/process.js";
+import { clearServerPid, ensureServerRunning, publicServerUrl, serverStatus, serverUrl, stopServer, writeServerPid } from "../server/process.js";
 import { loadAuthStore } from "../providers/chatgpt-codex/index.js";
 import {
   authStorePath,
@@ -273,7 +273,10 @@ async function runServer(args) {
   }
   const server = await createServer(config);
   await writeServerPid(config, process.pid, { mode: "foreground" });
-  console.log(`Shimex listening on http://${server.hostname}:${server.port}/admin`);
+  const directUrl = serverUrl(config);
+  const publicUrl = publicServerUrl(config);
+  const publicHint = publicUrl === directUrl ? "" : ` (Portless: ${publicUrl}/admin)`;
+  console.log(`Shimex listening on ${directUrl}/admin${publicHint}`);
   const close = async () => {
     await clearServerPid(config, process.pid);
     server.stop();

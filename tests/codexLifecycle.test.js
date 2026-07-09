@@ -39,6 +39,7 @@ describe("Codex managed app lifecycle", () => {
     const codexConfig = await readFile(join(profileHome, "config.toml"), "utf8");
     assert.match(codexConfig, /model = "test-model"/);
     assert.match(codexConfig, /model_provider = "shimex"/);
+    assert.match(codexConfig, /base_url = "https:\/\/shimex\.localhost\/v1"/);
     const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
     assert.equal(auth.auth_mode, "apikey");
     assert.equal(auth.OPENAI_API_KEY, "shimex-local-api-key");
@@ -54,6 +55,7 @@ function testConfig({ sourceApp, managedApp, runtimeHome, profileHome }) {
     runtime: {
       host: "127.0.0.1",
       port: 5413,
+      publicUrl: "https://shimex.localhost",
       home: runtimeHome,
     },
     codex: {
