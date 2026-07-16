@@ -40,6 +40,7 @@ describe("Codex managed app lifecycle", () => {
     assert.match(codexConfig, /model = "test-model"/);
     assert.match(codexConfig, /model_provider = "shimex"/);
     assert.match(codexConfig, /base_url = "https:\/\/shimex\.localhost\/v1"/);
+    assert.match(codexConfig, /web_search = "live"/);
     const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
     assert.equal(auth.auth_mode, "apikey");
     assert.equal(auth.OPENAI_API_KEY, "shimex-local-api-key");
@@ -64,6 +65,7 @@ function testConfig({ sourceApp, managedApp, runtimeHome, profileHome }) {
       managedAppPath: managedApp,
       profileHome,
       userDataDir: join(profileHome, "user-data"),
+      webSearch: "live",
     },
     providers: [],
   };

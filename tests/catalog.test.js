@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { codexCatalogEntry } from "../src/clients/codex/catalog.js";
+import { codexCatalogEntry, generateCodexCatalog } from "../src/clients/codex/catalog.js";
 import { loadShimexConfig } from "../src/core/config.js";
 import { slugify } from "../src/core/model.js";
 import { discoverModels } from "../src/core/modelDiscovery.js";
@@ -67,6 +67,59 @@ describe("Shimex scaffold", () => {
     });
     assert.deepEqual(entry.input_modalities, ["text"]);
     assert.equal(entry.supports_image_detail_original, false);
+  });
+
+  test("supports Codex-specific names and visibility", () => {
+    const catalog = generateCodexCatalog([
+      {
+        slug: "hermes",
+        displayName: "Hermes Agent",
+        codexDisplayName: "Hermes Agent",
+        providerId: "openai-compatible",
+        providerDisplayName: "OpenAI-Compatible Chat",
+        inputModalities: ["text"],
+      },
+      {
+        slug: "hermes-base",
+        displayName: "Hermes Base",
+        codexVisible: false,
+        providerId: "lm-studio",
+        providerDisplayName: "LM Studio",
+        inputModalities: ["text"],
+      },
+    ]);
+
+    assert.deepEqual(catalog.models.map((model) => model.slug), ["hermes"]);
+    assert.equal(catalog.models[0].display_name, "Hermes Agent");
+  });
+
+  test("advertises explicitly supported Codex web search", () => {
+    const entry = codexCatalogEntry({
+      slug: "search-model",
+      displayName: "Search Model",
+      providerId: "chatgpt-codex",
+      upstreamModel: "search-upstream",
+      contextWindow: 128000,
+      inputModalities: ["text", "image"],
+      supportsSearchTool: true,
+      webSearchToolType: "text_and_image",
+    });
+    assert.equal(entry.supports_search_tool, true);
+    assert.equal(entry.web_search_tool_type, "text_and_image");
+  });
+
+  test("does not infer web search support from partial metadata", () => {
+    const entry = codexCatalogEntry({
+      slug: "unknown-search-model",
+      displayName: "Unknown Search Model",
+      providerId: "test",
+      upstreamModel: "unknown-search-upstream",
+      contextWindow: 128000,
+      inputModalities: ["text"],
+      supportsSearchTool: true,
+    });
+    assert.equal(entry.supports_search_tool, false);
+    assert.equal(entry.web_search_tool_type, undefined);
   });
 
   test("discovers configured and static provider models", async () => {
@@ -160,6 +213,8 @@ describe("Shimex scaffold", () => {
             { effort: "ultra", description: "Maximum reasoning with automatic task delegation" },
           ],
           supports_image_detail_original: true,
+          supports_search_tool: true,
+          web_search_tool_type: "text_and_image",
           additional_speed_tiers: ["fast"],
           service_tiers: [{ id: "priority", name: "Fast", description: "1.5x speed, increased usage" }],
         },
@@ -197,6 +252,8 @@ describe("Shimex scaffold", () => {
     assert.deepEqual(sol.supported_reasoning_levels.map((level) => level.effort), ["low", "max", "ultra"]);
     assert.deepEqual(sol.additional_speed_tiers, ["fast"]);
     assert.equal(sol.service_tiers[0]?.id, "priority");
+    assert.equal(sol.supports_search_tool, true);
+    assert.equal(sol.web_search_tool_type, "text_and_image");
   });
 
   test("fills known Codex models when the dynamic cache is temporarily partial", async () => {

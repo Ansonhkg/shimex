@@ -55,6 +55,7 @@ describe("admin auth card runtime helpers", () => {
       "function renderCodexAuths()",
       "function codexProfileRow(",
       "function codexRingHtml(",
+      "function codexUsageColor(",
       "function codexUsageLane(",
       "function codexUsageCell(",
       "function codexResetCreditsHtml(",
@@ -72,6 +73,9 @@ describe("admin auth card runtime helpers", () => {
     // Ring renderer emits an SVG circle with a stroke-dashoffset so the
     // percentage is actually drawn as a graph, not a static label.
     assert.match(js, /stroke-dashoffset/);
+    assert.match(js, /% remaining/);
+    assert.match(js, /return 'var\(--ok\)'/);
+    assert.doesNotMatch(js, /codexUsageLane\([^\\n]+color,/);
     // The new card row uses the auth-profile grid, not a <tr>.
     assert.match(js, /class="auth-profile"/);
   });
@@ -84,6 +88,7 @@ describe("admin auth card runtime helpers", () => {
       "function renderClineAuths()",
       "function clineProfileRow(",
       "function clineRingHtml(",
+      "function clineUsageColor(",
       "function clineUsageLane(",
       "function clineUsageCell(",
       "function refreshClineUsage()",
@@ -97,6 +102,10 @@ describe("admin auth card runtime helpers", () => {
       assert.ok(js.includes(needle), `missing ${needle}`);
     }
     assert.match(js, /stroke-dashoffset/);
+    assert.match(js, /% remaining/);
+    assert.match(js, /return 'var\(--ok\)'/);
+    assert.doesNotMatch(js, /#9F57FA/);
+    assert.doesNotMatch(js, /clineUsageLane\([^\\n]+color,/);
     assert.match(js, /class="auth-profile"/);
   });
 });

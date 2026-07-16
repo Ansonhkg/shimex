@@ -68,10 +68,12 @@ export function listProfileSummaries(store) {
       available: profile.available !== false,
       note: profile.note || "",
       isDefault: profile.name === store.defaultProfile,
+      hasRefreshToken: Boolean(profile.refreshToken),
+      canRenew: Boolean(profile.refreshToken),
     }));
 }
 
-export function upsertProfile(store, name, payload) {
+export function upsertProfile(store, name, payload, options = {}) {
   const profileName = normalizeProfileName(name);
   if (!profileName) {
     throw new Error("Profile name must match [a-zA-Z0-9][a-zA-Z0-9._-]* and be 1-64 characters.");
@@ -79,6 +81,9 @@ export function upsertProfile(store, name, payload) {
   const tokens = parseAuthFilePayload(payload);
   if (!tokens.accessToken) {
     throw new Error("Codex auth payload is missing tokens.access_token.");
+  }
+  if (options.requireRefreshToken && !tokens.refreshToken && !store.profiles[profileName]?.refreshToken) {
+    throw new Error("Codex OAuth profiles require a refresh_token. Use Sign in, or paste a full OAuth payload that includes refresh_token.");
   }
   const now = new Date().toISOString();
   const existing = store.profiles[profileName];

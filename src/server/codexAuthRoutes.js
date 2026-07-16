@@ -117,7 +117,7 @@ async function handleAdd(request, listProfiles, codexProviderConfig, config) {
   const store = await listProfiles();
   let result;
   try {
-    result = upsertProfile(store, name, payload);
+    result = upsertProfile(store, name, payload, { requireRefreshToken: true });
   } catch (error) {
     return json({ error: String(error?.message || error) }, { status: 400 });
   }
@@ -326,6 +326,8 @@ function defaultCodexProfileSummary(auth) {
     isDefault: false,
     readOnly: true,
     source: "codex",
+    hasRefreshToken: Boolean(auth.refreshToken),
+    canRenew: false,
   };
 }
 
@@ -373,6 +375,8 @@ function publicProfile(profile) {
     note: profile.note || "",
     available: profile.available !== false,
     accountMasked: maskAccountId(profile.accountId),
+    hasRefreshToken: Boolean(profile.refreshToken),
+    canRenew: Boolean(profile.refreshToken),
   };
 }
 

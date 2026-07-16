@@ -25,6 +25,7 @@ export function codexConfigText(config, defaultModelSlug) {
     `model = "${tomlEscape(defaultModelSlug)}"`,
     `model_provider = "${providerName}"`,
     `model_catalog_json = "${tomlEscape(paths.catalogPath)}"`,
+    `web_search = "${tomlEscape(config.codex.webSearch || "cached")}"`,
     "",
     `[model_providers.${providerName}]`,
     'name = "Shimex"',

@@ -1,8 +1,11 @@
 const PLAN_TIERS = ["free", "plus", "pro", "team", "business", "enterprise"];
+const WEB_SEARCH_TOOL_TYPES = new Set(["text", "text_and_image"]);
 
 export function generateCodexCatalog(models) {
   return {
-    models: models.map((model, index) => codexCatalogEntry(model, index)),
+    models: models
+      .filter((model) => model.codexVisible !== false)
+      .map((model, index) => codexCatalogEntry(model, index)),
   };
 }
 
@@ -15,6 +18,8 @@ export function codexCatalogEntry(model, index = 0) {
     : defaultReasoningLevels();
   const displayName = codexDisplayName(model);
   const providerName = model.providerDisplayName || model.providerId || "Shimex";
+  const webSearchToolType = WEB_SEARCH_TOOL_TYPES.has(model.webSearchToolType) ? model.webSearchToolType : null;
+  const supportsSearch = model.supportsSearchTool === true && Boolean(webSearchToolType);
   return {
     slug: model.slug,
     display_name: displayName,
@@ -37,8 +42,8 @@ export function codexCatalogEntry(model, index = 0) {
     default_verbosity: model.defaultVerbosity || "low",
     support_verbosity: model.supportVerbosity ?? false,
     apply_patch_tool_type: "freeform",
-    web_search_tool_type: "text_and_image",
-    supports_search_tool: false,
+    ...(webSearchToolType ? { web_search_tool_type: webSearchToolType } : {}),
+    supports_search_tool: supportsSearch,
     supports_parallel_tool_calls: true,
     experimental_supported_tools: [],
     input_modalities: inputModalities,
@@ -74,6 +79,9 @@ function defaultReasoningLevels() {
 }
 
 function codexDisplayName(model) {
+  if (model.codexDisplayName) {
+    return model.codexDisplayName;
+  }
   const providerName = model.providerDisplayName || model.providerId;
   if (["chatgpt-codex", "cline-pass"].includes(model.providerId) && model.profile && model.displayName.includes(":")) {
     return model.displayName;

@@ -220,6 +220,7 @@ Streaming is supported for all combinations. Non-streaming upstream APIs (Anthro
 |---|---|---|
 | **Streaming** | ✅ | SSE for all providers; buffered-chunk stream when upstream lacks native SSE |
 | **Tool / function calling** | ✅ | Chat tools and Responses function_call items; translated for Anthropic |
+| **Web search** | ⚠️ Per-model | Enabled only when the provider's model metadata explicitly advertises a supported Codex search tool; unknown models remain search-disabled |
 | **Image input** | ⚠️ Per-provider | Only `anthropic`, `chatgpt-codex`, and image-capable `cline-pass` / `openai-compatible` models; text-only models reject images with a clear error |
 | **System / developer messages** | ✅ | Converted to `system` role for chat, top-level `system` for Anthropic, `instructions` for Responses |
 | **Reasoning effort** | ⚠️ Forwarded | `reasoning_effort` parameter forwarded when upstream supports it; not validated |
@@ -246,7 +247,6 @@ Streaming is supported for all combinations. Non-streaming upstream APIs (Anthro
 | **macOS only** | Codex app discovery, managed copy, and bundle patching hardcoded for macOS paths |
 | **Single managed app** | One `Shimex.app` copy; no multi-instance support |
 | **No WebSocket** | All streaming is SSE; `prefer_websockets: false` in catalog |
-| **No search tool** | `supports_search_tool: false` across all catalog entries |
 | **No verbosity control** | `support_verbosity: false` |
 | **No reasoning summaries** | `supports_reasoning_summaries: false` |
 

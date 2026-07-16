@@ -33,9 +33,18 @@ export function normalizeConfig(raw) {
       iconPath: normalizeProjectPath(raw.codex?.icon_path || "icon.png"),
       seedLocalAuth: raw.codex?.seed_local_auth !== false,
       localAuthKey: String(raw.codex?.local_auth_key || "shimex-local-api-key"),
+      webSearch: normalizeWebSearch(raw.codex?.web_search),
     },
     providers: (raw.providers || []).map((provider) => normalizeProviderConfig(provider)),
   };
+}
+
+function normalizeWebSearch(value) {
+  const mode = String(value || "cached");
+  if (!["disabled", "cached", "indexed", "live"].includes(mode)) {
+    throw new Error(`codex.web_search must be disabled, cached, indexed, or live: ${mode}`);
+  }
+  return mode;
 }
 
 function normalizePublicUrl(value) {
@@ -76,5 +85,9 @@ function normalizeModels(raw) {
     upstreamModel: model.upstream_model || model.upstreamModel || model.model || model.slug,
     contextWindow: Number(model.context_window || model.contextWindow || 128000),
     inputModalities: model.input_modalities || model.inputModalities || ["text"],
+    codexDisplayName: model.codex_display_name || model.codexDisplayName || "",
+    codexVisible: (model.codex_visible ?? model.codexVisible) !== false,
+    supportsSearchTool: model.supports_search_tool ?? model.supportsSearchTool ?? false,
+    webSearchToolType: model.web_search_tool_type || model.webSearchToolType || null,
   }));
 }

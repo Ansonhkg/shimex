@@ -152,6 +152,8 @@ function codexCacheMetadata(raw) {
     serviceTiers: raw.serviceTiers || raw.service_tiers || [],
     useResponsesLite: raw.useResponsesLite ?? raw.use_responses_lite ?? null,
     toolMode: raw.toolMode || raw.tool_mode || "",
+    supportsSearchTool: raw.supportsSearchTool ?? raw.supports_search_tool ?? false,
+    webSearchToolType: raw.webSearchToolType || raw.web_search_tool_type || null,
   };
 }
 

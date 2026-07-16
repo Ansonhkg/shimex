@@ -484,7 +484,12 @@ describe("Provider request adapters", () => {
         models: [],
       }),
       "/v1/responses",
-      { model: "gpt-5-5", input: "hello", stream: false },
+      {
+        model: "gpt-5-5",
+        input: "hello",
+        stream: false,
+        tools: [{ type: "web_search" }],
+      },
       {
         authPath,
         fetch: async (url, init) => {
@@ -506,7 +511,9 @@ describe("Provider request adapters", () => {
     assert.equal(result.status, 200);
     assert.equal(calls[0].url, "https://chatgpt.com/backend-api/codex/responses");
     assert.equal(calls[0].init.headers.authorization, "Bearer codex-token");
-    assert.equal(JSON.parse(calls[0].init.body).model, "gpt-5.5");
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.equal(upstreamBody.model, "gpt-5.5");
+    assert.deepEqual(upstreamBody.tools, [{ type: "web_search" }]);
     assert.equal(JSON.parse(result.body).model, "gpt-5-5");
   });
 

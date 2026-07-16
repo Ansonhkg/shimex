@@ -371,7 +371,7 @@ function styles() {
     }
     .usage-track-fill {
       height: 100%; border-radius: inherit;
-      background: linear-gradient(90deg, var(--usage-color, var(--accent)), color-mix(in srgb, var(--usage-color, var(--accent)) 65%, white));
+      background: linear-gradient(90deg, var(--usage-color, var(--ok)), color-mix(in srgb, var(--usage-color, var(--ok)) 65%, white));
       transition: width 0.6s ease;
     }
     .usage-track-fill.danger { background: linear-gradient(90deg, var(--danger), color-mix(in srgb, var(--danger) 65%, white)); }

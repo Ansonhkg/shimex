@@ -567,7 +567,7 @@ describe("codex-auth HTTP API", () => {
     assert.equal(list.status, 200);
     assert.deepEqual(JSON.parse(list.body).profiles, []);
 
-    const addBody = JSON.stringify({ name: "personal", auth_json: JSON.stringify({ tokens: { access_token: "tok-add-1", account_id: "acct_add_1" } }) });
+    const addBody = JSON.stringify({ name: "personal", auth_json: JSON.stringify({ tokens: { access_token: "tok-add-1", refresh_token: "refresh-add-1", account_id: "acct_add_1" } }) });
     const add = await routes.route(makeRequest("POST", addBody), new URL("http://x/api/codex-auths"));
     assert.equal(add.status, 200);
     assert.equal(JSON.parse(add.body).profile.accountId, undefined);
@@ -655,6 +655,21 @@ describe("codex-auth HTTP API", () => {
     const body = JSON.parse(list.body);
     assert.deepEqual(body.profiles.map((profile) => profile.name), ["work"]);
     assert.equal(body.profiles[0].isDefault, true);
+  });
+
+  test("rejects new Codex profiles without refresh tokens", async () => {
+    const root = await freshRoot();
+    const path = join(root, "codex-auths.json");
+    const routes = createCodexAuthRoutes({
+      runtime: { home: root },
+      providers: [{ id: "chatgpt-codex", enabled: true, options: { auths_path: path, legacy_single_account: false } }],
+    });
+    const result = await routes.route(
+      makeRequest("POST", { name: "partner", auth_json: JSON.stringify({ tokens: { access_token: "access-only" } }) }),
+      new URL("http://x/api/codex-auths"),
+    );
+    assert.equal(result.status, 400);
+    assert.match(JSON.parse(result.body).error, /refresh_token/);
   });
 
   test("rejects bad profile names with 400", async () => {

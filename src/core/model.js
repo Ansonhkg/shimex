@@ -12,12 +12,15 @@ export function normalizeModel(providerId, raw, index = 0, providerDisplayName =
   const displayName = raw.displayName || raw.display_name || raw.name || upstreamModel;
   const slug = raw.slug || slugify(`${providerId}-${upstreamModel}`);
   const inputModalities = normalizeModalities(raw.inputModalities || raw.input_modalities || raw.modalities);
+  const webSearchToolType = normalizeWebSearchToolType(raw.webSearchToolType || raw.web_search_tool_type);
   return {
     slug,
     providerId,
     providerDisplayName,
     upstreamModel,
     displayName,
+    codexDisplayName: raw.codexDisplayName || raw.codex_display_name || "",
+    codexVisible: (raw.codexVisible ?? raw.codex_visible) !== false,
     contextWindow: Number(raw.contextWindow || raw.context_window || raw.context || 128000),
     maxOutputTokens: raw.maxOutputTokens || raw.max_output_tokens || null,
     inputModalities,
@@ -33,11 +36,17 @@ export function normalizeModel(providerId, raw, index = 0, providerDisplayName =
     serviceTiers: Array.isArray(raw.serviceTiers || raw.service_tiers) ? raw.serviceTiers || raw.service_tiers : [],
     useResponsesLite: raw.useResponsesLite ?? raw.use_responses_lite ?? null,
     toolMode: raw.toolMode || raw.tool_mode || "",
+    supportsSearchTool: (raw.supportsSearchTool ?? raw.supports_search_tool) === true && Boolean(webSearchToolType),
+    webSearchToolType,
     priority: raw.priority || Math.max(1, 1000 - index),
     profile: typeof raw.profile === "string" ? raw.profile : "",
     accountId: typeof raw.accountId === "string" ? raw.accountId : "",
     raw,
   };
+}
+
+function normalizeWebSearchToolType(value) {
+  return value === "text" || value === "text_and_image" ? value : null;
 }
 
 function normalizeReasoningLevels(value) {
