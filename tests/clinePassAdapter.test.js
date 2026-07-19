@@ -437,6 +437,67 @@ describe("ClinePass adapter", () => {
     assert.equal(JSON.parse(calls[1].init.body).model, "cline-pass/kimi-k3");
     assert.equal(JSON.parse(result.body).output[0].content[0].text, "hello from Kimi K3");
   });
+
+  test("keeps every parallel Kimi K3 tool result as a separate chat message", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-kimi-k3",
+        stream: false,
+        input: [
+          { type: "message", role: "user", content: [{ type: "input_text", text: "inspect both files" }] },
+          { type: "function_call", call_id: "exec_command_8", name: "exec_command", arguments: "{\"cmd\":\"one\"}" },
+          { type: "function_call", call_id: "exec_command_9", name: "exec_command", arguments: "{\"cmd\":\"two\"}" },
+          { type: "function_call_output", call_id: "exec_command_8", output: "first result" },
+          { type: "function_call_output", call_id: "exec_command_9", output: "second result" },
+        ],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_kimi_k3",
+              choices: [{ message: { role: "assistant", content: "both inspected" } }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const messages = JSON.parse(calls[1].init.body).messages;
+    assert.deepEqual(messages.slice(-3).map((message) => ({
+      role: message.role,
+      ids: message.tool_calls?.map((call) => call.id),
+      toolCallId: message.tool_call_id,
+      content: message.content,
+    })), [
+      {
+        role: "assistant",
+        ids: ["exec_command_8", "exec_command_9"],
+        toolCallId: undefined,
+        content: null,
+      },
+      {
+        role: "tool",
+        ids: undefined,
+        toolCallId: "exec_command_8",
+        content: "first result",
+      },
+      {
+        role: "tool",
+        ids: undefined,
+        toolCallId: "exec_command_9",
+        content: "second result",
+      },
+    ]);
+  });
 });
 
 async function clineSettingsFile() {

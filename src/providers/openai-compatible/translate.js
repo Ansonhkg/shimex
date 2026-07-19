@@ -888,7 +888,15 @@ function mergeAdjacentMessages(messages) {
   const merged = [];
   for (const message of messages) {
     const previous = merged.at(-1);
-    if (previous && previous.role === message.role && typeof previous.content === "string" && typeof message.content === "string") {
+    if (
+      previous
+      && previous.role === message.role
+      && message.role !== "tool"
+      && !previous.tool_calls
+      && !message.tool_calls
+      && typeof previous.content === "string"
+      && typeof message.content === "string"
+    ) {
       previous.content = `${previous.content}\n${message.content}`.trim();
     } else {
       merged.push({ ...message });
