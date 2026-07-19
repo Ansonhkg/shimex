@@ -96,6 +96,48 @@ describe("ClinePass adapter", () => {
     assert.equal(payload.output[0].namespace, "codex_app");
   });
 
+  test("does not duplicate Codex thread tools already supplied by the client", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-kimi-k3",
+        input: "hello",
+        stream: false,
+        tools: [
+          loadedCodexAppTool(),
+          {
+            type: "function",
+            name: "create_thread",
+            description: "Create a thread.",
+            parameters: { type: "object", properties: {}, additionalProperties: false },
+          },
+        ],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_kimi_k3",
+              choices: [{ message: { role: "assistant", content: "hello" } }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[1].init.body);
+    const names = upstreamBody.tools.map((tool) => tool.function.name);
+    assert.equal(names.filter((name) => name === "create_thread").length, 1);
+    assert.equal(names.filter((name) => name === "send_message_to_thread").length, 1);
+  });
+
   test("restores namespace fields on ClinePass Responses function calls", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const calls = [];
@@ -188,6 +230,47 @@ describe("ClinePass adapter", () => {
     assert.equal(upstreamBody.tools[0].function.parameters.properties.patch.type, "string");
   });
 
+  test("removes enum and const constraints that contradict their JSON schema type", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      {
+        model: "cline-pass-kimi-k3",
+        input: "run the test",
+        stream: false,
+        tools: [{
+          type: "function",
+          name: "test_submit",
+          description: "Submit a test.",
+          parameters: {
+            type: "object",
+            properties: {
+              invalidEnum: { type: "string", enum: [true] },
+              mixedEnum: { type: "string", enum: [true, "valid"] },
+              invalidConst: { type: "string", const: false },
+            },
+          },
+        }],
+      },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({ data: { choices: [{ message: { role: "assistant", content: "done" } }] } });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const properties = JSON.parse(calls[1].init.body).tools[0].function.parameters.properties;
+    assert.equal(Object.hasOwn(properties.invalidEnum, "enum"), false);
+    assert.deepEqual(properties.mixedEnum.enum, ["valid"]);
+    assert.equal(Object.hasOwn(properties.invalidConst, "const"), false);
+  });
+
   test("streams chat chunks as Responses events", async () => {
     const providerSettingsPath = await clineSettingsFile();
     const result = await handleClinePassModelRequest(
@@ -217,6 +300,57 @@ describe("ClinePass adapter", () => {
     assert.match(text, /hi/);
     assert.match(text, /there/);
     assert.match(text, /response.completed/);
+  });
+
+  test("surfaces ClinePass SSE errors as failed Responses events", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const result = await handleClinePassModelRequest(
+      { model: "cline-pass-kimi-k3", input: "hello", stream: true },
+      {
+        providerSettingsPath,
+        fetch: async (url) => {
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return new Response(
+            'data: {"success":false,"error":"Invalid request: function name create_thread is duplicated"}\n\n',
+            { headers: { "content-type": "text/event-stream" } },
+          );
+        },
+      },
+    );
+
+    const writes = [];
+    await result.stream({ write: (chunk) => writes.push(String(chunk)) });
+    const events = sseEvents(writes.join(""));
+    assert.equal(events[0].type, "response.created");
+    assert.equal(events[1].type, "response.failed");
+    assert.match(events[1].response.error.message, /create_thread is duplicated/);
+    assert.equal(events.some((event) => event.type === "response.completed"), false);
+  });
+
+  test("surfaces the provider validation detail nested in ClinePass SSE errors", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const result = await handleClinePassModelRequest(
+      { model: "cline-pass-kimi-k3", input: "hello", stream: true },
+      {
+        providerSettingsPath,
+        fetch: async (url) => {
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return new Response(
+            'data: {"error":{"message":"Bad Request","param":{"error":"generic"}},"providerMetadata":{"gateway":{"routing":{"modelAttempts":[{"providerAttempts":[{"error":"Invalid tool schema: unsupported keyword"}]}]}}}}\n\n',
+            { headers: { "content-type": "text/event-stream" } },
+          );
+        },
+      },
+    );
+
+    const writes = [];
+    await result.stream({ write: (chunk) => writes.push(String(chunk)) });
+    const failed = sseEvents(writes.join("")).find((event) => event.type === "response.failed");
+    assert.equal(failed.response.error.message, "Invalid tool schema: unsupported keyword");
   });
 
   test("streams chat tool calls as Responses function call events", async () => {
@@ -273,6 +407,35 @@ describe("ClinePass adapter", () => {
     });
     assert.equal(result.status, 400);
     assert.match(JSON.parse(result.body).error.message, /does not support image/);
+  });
+
+  test("routes Kimi K3 through the ClinePass chat endpoint", async () => {
+    const providerSettingsPath = await clineSettingsFile();
+    const calls = [];
+    const result = await handleClinePassModelRequest(
+      { model: "cline-pass-kimi-k3", input: "hello", stream: false },
+      {
+        providerSettingsPath,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          if (String(url).endsWith("/auth/refresh")) {
+            return jsonResponse({ data: { accessToken: "fresh-token", refreshToken: "next-refresh" } });
+          }
+          return jsonResponse({
+            data: {
+              id: "chatcmpl_kimi_k3",
+              created: 123,
+              choices: [{ message: { role: "assistant", content: "hello from Kimi K3" } }],
+            },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(calls[1].url, "https://api.cline.bot/api/v1/chat/completions");
+    assert.equal(JSON.parse(calls[1].init.body).model, "cline-pass/kimi-k3");
+    assert.equal(JSON.parse(result.body).output[0].content[0].text, "hello from Kimi K3");
   });
 });
 

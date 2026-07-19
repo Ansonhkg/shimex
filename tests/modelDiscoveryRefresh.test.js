@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { generateCodexCatalog } from "../src/clients/codex/catalog.js";
 import { discoverModels } from "../src/core/modelDiscovery.js";
 import { clinePassProvider } from "../src/providers/cline-pass/index.js";
 import { lmStudioProvider } from "../src/providers/lm-studio/index.js";
@@ -13,19 +14,31 @@ describe("Provider model discovery refresh", () => {
     const rootConfig = { runtime: { home: runtimeHome }, providers: [clineConfig()] };
     const result = await clinePassProvider.refreshModels(clineConfig(), rootConfig, {
       fetch: async () => jsonResponse({
-        clinePass: [{
-          id: "cline-pass/kimi-k2.6",
-        }],
+        clinePass: [
+          { id: "cline-pass/kimi-k2.6" },
+          { id: "cline-pass/kimi-k3" },
+        ],
       }),
     });
 
     assert.equal(result.refreshed, true);
     const models = await discoverModels(rootConfig);
-    assert.equal(models[0].slug, "cline-pass-kimi-k2-6");
-    assert.equal(models[0].providerDisplayName, "ClinePass");
-    assert.equal(models[0].displayName, "Kimi K2.6");
-    assert.equal(models[0].contextWindow, 262000);
-    assert.deepEqual(models[0].inputModalities, ["text", "image"]);
+    const kimiK2 = models.find((model) => model.upstreamModel === "cline-pass/kimi-k2.6");
+    const kimiK3 = models.find((model) => model.upstreamModel === "cline-pass/kimi-k3");
+    assert.equal(kimiK2.slug, "cline-pass-kimi-k2-6");
+    assert.equal(kimiK2.providerDisplayName, "ClinePass");
+    assert.equal(kimiK2.displayName, "Kimi K2.6");
+    assert.equal(kimiK2.contextWindow, 262000);
+    assert.deepEqual(kimiK2.inputModalities, ["text", "image"]);
+    assert.equal(kimiK3.slug, "cline-pass-kimi-k3");
+    assert.equal(kimiK3.displayName, "Kimi K3");
+    assert.equal(kimiK3.contextWindow, 128000);
+    assert.deepEqual(kimiK3.inputModalities, ["text"]);
+
+    const catalogEntry = generateCodexCatalog(models).models.find((model) => model.slug === "cline-pass-kimi-k3");
+    assert.equal(catalogEntry.display_name, "ClinePass: Kimi K3");
+    assert.deepEqual(catalogEntry.input_modalities, ["text"]);
+    assert.equal(catalogEntry.supports_image_detail_original, false);
   });
 
   test("refreshes and reads cached OpenAI-compatible /models responses", async () => {

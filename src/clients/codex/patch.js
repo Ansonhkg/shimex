@@ -11,14 +11,14 @@ const APP_ASAR_BACKUP_NAME = "app.asar.before-shimex-model-picker-patch";
 const INFO_PLIST_BACKUP_NAME = "Info.plist.before-shimex-model-picker-patch";
 const MODEL_PICKER_PATCH = {
   name: "model-picker-hidden-models",
-  already: /function\s+[A-Za-z_$][\w$]*\(\{authMethod:[A-Za-z_$][\w$]*,availableModels:[^}]*?,useHiddenModels:[A-Za-z_$][\w$]*\}\)\{let\s+[A-Za-z_$][\w$]*=\[\],[A-Za-z_$][\w$]*=null,[A-Za-z_$][\w$]*=!1,/,
-  match: /(function\s+[A-Za-z_$][\w$]*\(\{authMethod:([A-Za-z_$][\w$]*),availableModels:[^}]*?,useHiddenModels:([A-Za-z_$][\w$]*)\}\)\{let\s+[A-Za-z_$][\w$]*=\[\],[A-Za-z_$][\w$]*=null,)([A-Za-z_$][\w$]*)=\3&&\2!==`amazonBedrock`,/,
-  replace: "$1$4=!1,",
+  already: /function\s+[A-Za-z_$][\w$]*\(\{authMethod:[^}]*?,useHiddenModels:[A-Za-z_$][\w$]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{if\(!0\)\{/,
+  match: /(function\s+[A-Za-z_$][\w$]*\(\{authMethod:[^}]*?,useHiddenModels:[A-Za-z_$][\w$]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{)if\([A-Za-z_$][\w$]*\?[A-Za-z_$][\w$]*\.has\([A-Za-z_$][\w$]*\.model\):![A-Za-z_$][\w$]*\.hidden\)\{/,
+  replace: "$1if(!0){",
 };
 const SIDEBAR_RECENT_THREADS_PATCH = {
   name: "sidebar-recent-thread-provider-filter",
-  already: /async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),modelProviders:\[\],archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\}/,
-  match: /(async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),)modelProviders:null(,archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[A-Za-z_$][\w$]*\})/,
+  already: /async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),modelProviders:\[\],archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[^,}]+\}/,
+  match: /(async listRecentThreads\(\{cursor:[^}]+?\}\)\{let [A-Za-z_$][\w$]*=\{limit:[^}]*?sortKey:this\.params\.requestClient\.getCompatibleThreadSortKey\(this\.recentConversationSortKey\),)modelProviders:null(,archived:!1,sourceKinds:[A-Za-z_$][\w$]*,useStateDbOnly:[^,}]+\})/,
   replace: "$1modelProviders:[]$2",
 };
 const BUNDLE_PATCHES = [MODEL_PICKER_PATCH, SIDEBAR_RECENT_THREADS_PATCH];

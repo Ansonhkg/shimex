@@ -28,9 +28,9 @@ export async function handleClinePassModelRequest(body, options = {}) {
     }, 400);
   }
   const upstreamModel = route?.model?.upstreamModel || clinePassUpstreamModel(requestedModel);
-  const chatBody = body.messages
+  const chatBody = sanitizeClineChatBody(body.messages
     ? { ...body, model: upstreamModel }
-    : responsesToChat(body, upstreamModel);
+    : responsesToChat(body, upstreamModel));
   const toolNamespaceMap = body.messages ? null : createToolNamespaceMap(body.tools);
   const resolved = await resolveClineAuth(route, requestedModel, options);
   if (!resolved.token) {
@@ -72,6 +72,11 @@ async function streamClinePassChat(response, body, requestedModel, token, fetchI
   const state = createResponsesStreamState({ toolNamespaceMap });
   for await (const payload of readSseJson(upstream)) {
     const chunk = unwrapOpenAICompatiblePayload(payload);
+    const error = streamPayloadError(chunk);
+    if (error) {
+      writeResponsesStreamFailure(response, state, requestedModel, error);
+      return;
+    }
     for (const event of chatChunkToResponsesEvents(state, chunk, requestedModel, toolNamespaceMap)) {
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     }
@@ -79,6 +84,56 @@ async function streamClinePassChat(response, body, requestedModel, token, fetchI
   for (const event of finishChatResponsesStream(state, requestedModel)) {
     response.write(`data: ${JSON.stringify(event)}\n\n`);
   }
+  response.write("data: [DONE]\n\n");
+}
+
+function streamPayloadError(payload) {
+  if (!payload || typeof payload !== "object" || (!payload.error && payload.success !== false)) {
+    return "";
+  }
+  if (typeof payload.error === "string") {
+    return payload.error;
+  }
+  const providerAttempts = payload.providerMetadata?.gateway?.routing?.modelAttempts
+    ?.flatMap((attempt) => attempt?.providerAttempts || [])
+    .map((attempt) => attempt?.error)
+    .filter(Boolean);
+  return String(
+    providerAttempts?.[0]
+      || payload.error?.param?.error
+      || payload.error?.message
+      || payload.message
+      || "ClinePass upstream stream failed.",
+  );
+}
+
+function writeResponsesStreamFailure(response, state, requestedModel, message) {
+  if (!state.created) {
+    state.created = true;
+    response.write(`data: ${JSON.stringify({
+      type: "response.created",
+      response: {
+        id: state.responseId,
+        object: "response",
+        created_at: Math.floor(Date.now() / 1000),
+        status: "in_progress",
+        model: requestedModel,
+        output: [],
+      },
+    })}\n\n`);
+  }
+  response.write(`data: ${JSON.stringify({
+    type: "response.failed",
+    response: {
+      id: state.responseId,
+      object: "response",
+      created_at: Math.floor(Date.now() / 1000),
+      status: "failed",
+      model: requestedModel,
+      output: [],
+      error: { code: "upstream_error", message },
+    },
+  })}\n\n`);
   response.write("data: [DONE]\n\n");
 }
 
@@ -93,6 +148,59 @@ async function postClinePassChat(body, token, fetchImpl) {
     },
     body: JSON.stringify(body),
   });
+}
+
+function sanitizeClineChatBody(body) {
+  if (!Array.isArray(body.tools)) {
+    return body;
+  }
+  return {
+    ...body,
+    tools: body.tools.map((tool) => ({
+      ...tool,
+      function: tool?.function
+        ? { ...tool.function, parameters: sanitizeJsonSchema(tool.function.parameters) }
+        : tool?.function,
+    })),
+  };
+}
+
+function sanitizeJsonSchema(value) {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeJsonSchema);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const result = Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [key, sanitizeJsonSchema(nested)]),
+  );
+  const types = Array.isArray(result.type) ? result.type : [result.type].filter(Boolean);
+  if (types.length && Array.isArray(result.enum)) {
+    const valid = result.enum.filter((candidate) => types.some((type) => jsonValueMatchesType(candidate, type)));
+    if (valid.length) {
+      result.enum = valid;
+    } else {
+      delete result.enum;
+    }
+  }
+  if (types.length && Object.hasOwn(result, "const") && !types.some((type) => jsonValueMatchesType(result.const, type))) {
+    delete result.const;
+  }
+  return result;
+}
+
+function jsonValueMatchesType(value, type) {
+  switch (type) {
+    case "string": return typeof value === "string";
+    case "number": return typeof value === "number" && Number.isFinite(value);
+    case "integer": return Number.isInteger(value);
+    case "boolean": return typeof value === "boolean";
+    case "null": return value === null;
+    case "array": return Array.isArray(value);
+    case "object": return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    default: return true;
+  }
 }
 
 async function* readSseJson(response) {

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shimex — Any LLM Provider &amp; Multiple Profiles in Codex</title>
-  <meta name="description" content="Shimex lets Codex Desktop use any LLM provider—local, hosted, or CLI-backed—and multiple profiles for the same provider through a managed app copy and local gateway.">
+  <title>Shimex — Use Kimi K3 and Any LLM in Codex Desktop</title>
+  <meta name="description" content="Run Kimi K3 in Codex Desktop through ClinePass, alongside local, hosted, and OpenAI-compatible models. Shimex keeps the original Codex app untouched.">
   <meta name="application-name" content="Shimex">
   <meta name="author" content="anson">
   <meta name="robots" content="index,follow,max-image-preview:large">
@@ -16,8 +16,8 @@
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shimex.xyz/">
-  <meta property="og:title" content="Shimex — Any LLM Provider &amp; Multiple Profiles in Codex">
-  <meta property="og:description" content="Use any LLM provider plus multiple profiles for the same provider in Codex Desktop, without modifying your original app.">
+  <meta property="og:title" content="Shimex — Kimi K3 Support for Codex Desktop">
+  <meta property="og:description" content="Use Kimi K3 through ClinePass plus local, hosted, and OpenAI-compatible models in Codex Desktop—without modifying the original app.">
   <meta property="og:image" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:secure_url" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:type" content="image/png">
@@ -25,8 +25,8 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Shimex — Any LLM Provider &amp; Multiple Profiles in Codex">
-  <meta name="twitter:description" content="Use any LLM provider plus multiple profiles for the same provider in Codex Desktop.">
+  <meta name="twitter:title" content="Shimex — Kimi K3 Support for Codex Desktop">
+  <meta name="twitter:description" content="Kimi K3 now works in Codex Desktop through ClinePass, with streaming and Codex tools.">
   <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
   <meta name="twitter:image:alt" content="Shimex running as a managed Codex Desktop app with provider and reasoning controls">
   <script type="application/ld+json">
@@ -38,7 +38,7 @@
           "@id": "https://shimex.xyz/#website",
           "name": "Shimex",
           "url": "https://shimex.xyz/",
-          "description": "Use any configured LLM provider and multiple profiles for the same provider in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
+          "description": "Use Kimi K3 through ClinePass and other configured LLM providers in Codex Desktop through a managed app copy and local OpenAI-compatible gateway.",
           "inLanguage": "en",
           "publisher": { "@id": "https://anson.sh/#person" }
         },
@@ -60,7 +60,14 @@
           "operatingSystem": "macOS",
           "url": "https://shimex.xyz/",
           "image": "https://shimex.xyz/social-card.png",
-          "description": "Shimex lets Codex Desktop use any configured local, hosted, or CLI-backed LLM provider and multiple profiles for the same provider through a managed app copy and local OpenAI-compatible gateway.",
+          "description": "Shimex lets Codex Desktop use Kimi K3 through ClinePass plus configured local, hosted, and CLI-backed LLM providers through a managed app copy and local OpenAI-compatible gateway.",
+          "featureList": [
+            "Kimi K3 in the Codex Desktop model picker through ClinePass",
+            "Streaming and Codex tool calling with Kimi K3",
+            "Multiple ChatGPT/Codex and ClinePass profiles",
+            "Local OpenAI-compatible provider gateway",
+            "Managed Codex app copy that leaves the original app untouched"
+          ],
           "author": { "@id": "https://anson.sh/#person" },
           "sameAs": "https://github.com/Ansonhkg/shimex",
           "offers": {
@@ -75,10 +82,11 @@
           "name": "Shimex sections",
           "itemListElement": [
             { "@type": "SiteNavigationElement", "position": 1, "name": "Install", "url": "https://shimex.xyz/#install" },
-            { "@type": "SiteNavigationElement", "position": 2, "name": "Providers", "url": "https://shimex.xyz/#providers" },
-            { "@type": "SiteNavigationElement", "position": 3, "name": "Documentation", "url": "https://shimex.xyz/#documentation" },
-            { "@type": "SiteNavigationElement", "position": 4, "name": "Free", "url": "https://shimex.xyz/#free" },
-            { "@type": "SiteNavigationElement", "position": 5, "name": "FAQ", "url": "https://shimex.xyz/#faq" }
+            { "@type": "SiteNavigationElement", "position": 2, "name": "Kimi K3", "url": "https://shimex.xyz/#kimi-k3" },
+            { "@type": "SiteNavigationElement", "position": 3, "name": "Providers", "url": "https://shimex.xyz/#providers" },
+            { "@type": "SiteNavigationElement", "position": 4, "name": "Documentation", "url": "https://shimex.xyz/#documentation" },
+            { "@type": "SiteNavigationElement", "position": 5, "name": "Free", "url": "https://shimex.xyz/#free" },
+            { "@type": "SiteNavigationElement", "position": 6, "name": "FAQ", "url": "https://shimex.xyz/#faq" }
           ]
         },
         {
@@ -99,6 +107,14 @@
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I use Kimi K3 in Codex Desktop?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Shimex exposes Kimi K3 in the Codex Desktop model picker through an authenticated ClinePass profile, with text input, streaming responses, and Codex tool calling."
               }
             },
             {
@@ -365,9 +381,9 @@
 
 <aside class="update-banner" data-update-banner aria-label="Product update">
   <div class="update-banner-inner">
-    <a class="update-banner-link" href="#providers">
+    <a class="update-banner-link" href="#kimi-k3">
       <span class="label">New</span>
-      <span>OpenAI GPT-5.6 Sol, Terra, and Luna are now supported in the Codex model picker.</span>
+      <span>Kimi K3 is now supported in Codex Desktop through ClinePass.</span>
     </a>
     <button class="update-banner-close" type="button" data-update-banner-close aria-label="Dismiss product update">&times;</button>
   </div>
@@ -389,7 +405,7 @@
 </nav>
 
 <header class="hero">
-  <h1>Use any LLM provider in Codex Desktop &mdash; without modifying Codex.</h1>
+  <h1>Use Kimi K3 and any LLM provider in Codex Desktop &mdash; without modifying Codex.</h1>
   <p class="tagline">
     Shimex creates a managed Codex Desktop app and routes it through your configured providers &mdash; hosted APIs, local model servers, and external CLI sessions &mdash; using a local OpenAI-compatible gateway. Your original Codex install stays untouched.
   </p>
@@ -421,10 +437,26 @@
   <figcaption>The local admin control plane at <code>https://shimex.localhost/admin</code> (with <code>http://127.0.0.1:5413/admin</code> as fallback).</figcaption>
 </figure>
 
+<section id="kimi-k3">
+  <h2>Kimi K3 for Codex Desktop</h2>
+  <p><strong>Kimi K3 is now supported in Shimex through ClinePass.</strong> Connect a Cline profile, restart Shimex to refresh the model catalog, and select <code>web: Kimi K3</code> in the Codex model picker.</p>
+  <div class="split-list">
+    <div class="mini-card">
+      <h3>Start with ClinePass</h3>
+      <p>Open the local Shimex admin UI, choose <strong>Sign in with Cline</strong>, then run <code>npm run stop:all &amp;&amp; npm start</code> after the profile is connected.</p>
+    </div>
+    <div class="mini-card">
+      <h3>Get a working Codex agent</h3>
+      <p>Choose <code>web: Kimi K3</code> for text conversations, streamed replies, and Codex tool calls. Shimex normalises strict Moonshot tool schemas before routing.</p>
+    </div>
+  </div>
+</section>
+
 <section id="providers">
   <h2>What it does</h2>
   <p>Codex Desktop can only use the providers it knows about. Shimex gives it a local OpenAI-compatible gateway and generated model catalog so your own providers appear in the picker.</p>
   <ul>
+    <li>Run Kimi K3 in Codex Desktop through an authenticated ClinePass profile, with text input, streaming responses, and Codex tool calling.</li>
     <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
     <li>Keep multiple ChatGPT/Codex and ClinePass profiles separate, with profile-scoped models in the picker so each request uses the selected account.</li>
     <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
@@ -502,6 +534,10 @@ npm run shimex -- models list                  # discovered models</code></pre>
     <p>Shimex can route to ClinePass, DeepSeek, LM Studio, Cloudflare Workers AI, Anthropic, Ollama, Cursor Composer, OpenAI-compatible endpoints, and other configured providers.</p>
   </div>
   <div class="faq-item">
+    <h3>Can I use Kimi K3 in Codex Desktop?</h3>
+    <p>Yes. Connect a ClinePass profile in the Shimex admin UI, restart Shimex with <code>npm run stop:all &amp;&amp; npm start</code>, and select <code>web: Kimi K3</code> in the Codex model picker. Shimex supports text input, streaming responses, and Codex tool calls for Kimi K3.</p>
+  </div>
+  <div class="faq-item">
     <h3>Does Shimex support multiple provider profiles?</h3>
     <p>Yes. Keep multiple ChatGPT/Codex and ClinePass profiles separate. Shimex exposes profile-scoped models in the picker, so each request uses the profile you selected.</p>
   </div>
@@ -531,7 +567,7 @@ npm run shimex -- models list                  # discovered models</code></pre>
   (function () {
     var banner = document.querySelector("[data-update-banner]");
     var close = document.querySelector("[data-update-banner-close]");
-    var key = "shimex-update-gpt-5-6-dismissed";
+    var key = "shimex-update-kimi-k3-dismissed";
     try {
       if (sessionStorage.getItem(key) === "1") banner.hidden = true;
     } catch (_) {}

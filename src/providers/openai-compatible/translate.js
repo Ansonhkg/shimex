@@ -702,7 +702,21 @@ export function ensureCodexAppThreadTools(tools) {
   if (hasCodexNamespace || hasThreadSend || !hasLoadedCodexAppTool(tools)) {
     return tools;
   }
-  return [...tools, codexAppThreadNamespaceTool()];
+  const existingNames = new Set(tools.flatMap(toolNames));
+  const missingThreadTools = codexAppThreadNamespaceTool().tools
+    .filter((tool) => !existingNames.has(tool.name));
+  if (!missingThreadTools.length) {
+    return tools;
+  }
+  return [...tools, { ...codexAppThreadNamespaceTool(), tools: missingThreadTools }];
+}
+
+function toolNames(tool) {
+  if (tool?.type === "namespace" && Array.isArray(tool.tools)) {
+    return tool.tools.flatMap(toolNames);
+  }
+  const name = tool?.name || tool?.function?.name;
+  return name ? [name] : [];
 }
 
 function hasLoadedCodexAppTool(tools) {

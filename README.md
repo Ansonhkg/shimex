@@ -1,4 +1,4 @@
-> **Latest update:** Shimex supports OpenAI's GPT-5.6 Sol, Terra, and Luna models in the Codex model picker.
+> **Latest update:** Kimi K3 is now supported in Codex Desktop through ClinePass, with streaming responses and Codex tool calling.
 
 # Shimex
 
@@ -28,6 +28,7 @@ original Codex app stays untouched.
 ## Table of Contents
 
 - [What is Shimex?](#what-is-shimex)
+- [Kimi K3 in Codex Desktop](#kimi-k3-in-codex-desktop)
 - [Architecture](#architecture)
 - [Supported Capabilities](#supported-capabilities)
 - [Getting Started](#getting-started)
@@ -61,6 +62,19 @@ and external CLI sessions. It:
 
 Shimex expects you already have [Codex Desktop](https://openai.com/codex/) installed
 at `/Applications/Codex.app`.
+
+---
+
+## Kimi K3 in Codex Desktop
+
+Shimex exposes Kimi K3 through an authenticated ClinePass profile. The model appears as **web: Kimi K3** in the Codex model picker and supports text input, streamed replies, and Codex tool calls.
+
+1. Start Shimex with `npm start`.
+2. Open `https://shimex.localhost/admin` and choose **Sign in with Cline**.
+3. Refresh the managed app and model catalog with `npm run stop:all && npm start` after connecting the profile.
+4. Select **web: Kimi K3** in Codex Desktop.
+
+The normalized model slug is `web-cline-pass-kimi-k3`; the upstream ClinePass model is `cline-pass/kimi-k3`. Kimi K3 is currently registered as text-only, so Shimex rejects image input instead of silently dropping it.
 
 ---
 
@@ -145,7 +159,7 @@ src/
 | ChatGPT / Codex | `chatgpt-codex` | Passthrough | **Multi-account.** Each ChatGPT/Codex login becomes a profile (e.g. `personal-gpt-5-5`, `work-gpt-5-5`) in the picker. |
 
 | Cursor Composer | `cursor-composer` | Passthrough | Text-only bridge via `cursor-agent` |
-| ClinePass | `cline-pass` | Passthrough | External CLI login |
+| ClinePass | `cline-pass` | Passthrough | External Cline login; includes Kimi K3 with streaming and Codex tools |
 | Auto Router | `auto-router` | Virtual | Classifier-based routing |
 
 ---

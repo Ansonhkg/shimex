@@ -13,6 +13,7 @@ import {
 import { discoverModels } from "../src/core/modelDiscovery.js";
 import { generateCodexCatalog } from "../src/clients/codex/catalog.js";
 import { handleProviderModelRequest } from "../src/providers/adapter.js";
+import { CLINE_PASS_MODELS } from "../src/providers/cline-pass/index.js";
 import { createClineAuthRoutes } from "../src/server/clineAuthRoutes.js";
 
 async function freshRoot() {
@@ -79,12 +80,15 @@ describe("cline auth profiles", () => {
       providers: [{ id: "cline-pass", enabled: true, options: { auths_path: path } }],
     };
     const models = await discoverModels(config);
-    assert.equal(models.length, 30);
+    assert.equal(models.length, CLINE_PASS_MODELS.length * 3);
     assert.ok(models.find((model) => model.slug === "cline-pass-glm-5-2" && model.profile === "personal"));
     assert.ok(models.find((model) => model.slug === "partner-cline-pass-glm-5-2" && model.displayName === "partner: GLM-5.2"));
+    assert.ok(models.find((model) => model.slug === "cline-pass-kimi-k3" && model.profile === "personal"));
+    assert.ok(models.find((model) => model.slug === "partner-cline-pass-kimi-k3" && model.displayName === "partner: Kimi K3"));
     assert.equal(models.find((model) => model.slug === "partner-cline-pass-glm-5-2").accountId, "");
     const catalog = generateCodexCatalog(models);
     assert.equal(catalog.models.find((model) => model.slug === "partner-cline-pass-glm-5-2").display_name, "partner: GLM-5.2");
+    assert.equal(catalog.models.find((model) => model.slug === "partner-cline-pass-kimi-k3").display_name, "partner: Kimi K3");
   });
 
   test("routes profile-scoped Cline model using profile token", async () => {
