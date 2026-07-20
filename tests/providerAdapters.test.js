@@ -265,6 +265,56 @@ describe("Provider request adapters", () => {
     }
   });
 
+  test("injects Codex app thread tools and hint into the raw Responses passthrough", async () => {
+    const previous = process.env.OPENAI_RESPONSES_API_KEY;
+    process.env.OPENAI_RESPONSES_API_KEY = "responses-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "openai-responses",
+          endpoint: "https://responses.example/v1",
+          auth: { type: "env", name: "OPENAI_RESPONSES_API_KEY" },
+          models: [modelConfig({ slug: "responses-model", upstreamModel: "resp-upstream" })],
+        }),
+        "/v1/responses",
+        {
+          model: "responses-model",
+          instructions: "be brief",
+          input: "send a note to the other thread",
+          tools: [loadedCodexAppTool()],
+          stream: false,
+        },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "resp_1",
+              created_at: 456,
+              model: "resp-upstream",
+              output: [{
+                id: "msg_1",
+                type: "message",
+                role: "assistant",
+                content: [{ type: "output_text", text: "sent", annotations: [] }],
+              }],
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      const upstreamBody = JSON.parse(calls[0].init.body);
+      const toolNames = upstreamBody.tools.flatMap((tool) => (tool.type === "namespace" ? tool.tools.map((nested) => nested.name) : [tool.name]));
+      assert.ok(toolNames.includes("navigate_to_codex_page"));
+      assert.ok(toolNames.includes("send_message_to_thread"));
+      assert.match(upstreamBody.instructions, /be brief/);
+      assert.match(upstreamBody.instructions, /Codex app thread tools/);
+    } finally {
+      setOrDeleteEnv("OPENAI_RESPONSES_API_KEY", previous);
+    }
+  });
+
   test("routes Responses requests to Anthropic Messages", async () => {
     const previous = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "anthropic-key";
@@ -461,6 +511,108 @@ describe("Provider request adapters", () => {
           ],
         },
       ]);
+    } finally {
+      setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
+    }
+  });
+
+  test("injects Codex app thread tools and hint on the Anthropic route", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "anthropic",
+          endpoint: "https://api.anthropic.com/v1",
+          auth: { type: "env", name: "ANTHROPIC_API_KEY" },
+          models: [modelConfig({ slug: "claude-test", upstreamModel: "claude-upstream" })],
+        }),
+        "/v1/responses",
+        {
+          model: "claude-test",
+          instructions: "be brief",
+          input: [{ role: "user", content: [{ type: "input_text", text: "send a note to the other thread" }] }],
+          tools: [loadedCodexAppTool()],
+          stream: false,
+        },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "msg_1",
+              model: "claude-upstream",
+              content: [{ type: "text", text: "sent" }],
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      const upstreamBody = JSON.parse(calls[0].init.body);
+      const toolNames = upstreamBody.tools.map((tool) => tool.name);
+      assert.ok(toolNames.includes("navigate_to_codex_page"));
+      assert.ok(toolNames.includes("send_message_to_thread"));
+      assert.ok(toolNames.includes("create_thread"));
+      assert.match(upstreamBody.system, /be brief/);
+      assert.match(upstreamBody.system, /Codex app thread tools/);
+    } finally {
+      setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
+    }
+  });
+
+  test("merges missing thread tools into a client-supplied partial codex_app namespace", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const calls = [];
+    try {
+      const result = await handleProviderModelRequest(
+        testConfig({
+          id: "anthropic",
+          endpoint: "https://api.anthropic.com/v1",
+          auth: { type: "env", name: "ANTHROPIC_API_KEY" },
+          models: [modelConfig({ slug: "claude-test", upstreamModel: "claude-upstream" })],
+        }),
+        "/v1/responses",
+        {
+          model: "claude-test",
+          instructions: "be brief",
+          input: [{ role: "user", content: [{ type: "input_text", text: "send a note to the other thread" }] }],
+          tools: [
+            { type: "function", name: "exec_command", description: "Run a shell command.", parameters: { type: "object", properties: {} } },
+            {
+              type: "namespace",
+              name: "codex_app",
+              tools: [{
+                type: "function",
+                name: "navigate_to_codex_page",
+                description: "Navigate the most recently focused main Codex window to a thread.",
+                inputSchema: { type: "object", properties: { threadId: { type: "string" } }, required: ["threadId"] },
+              }],
+            },
+          ],
+          stream: false,
+        },
+        {
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return jsonResponse({
+              id: "msg_1",
+              model: "claude-upstream",
+              content: [{ type: "text", text: "sent" }],
+            });
+          },
+        },
+      );
+
+      assert.equal(result.status, 200);
+      const upstreamBody = JSON.parse(calls[0].init.body);
+      const toolNames = upstreamBody.tools.map((tool) => tool.name);
+      assert.ok(toolNames.includes("navigate_to_codex_page"));
+      assert.ok(toolNames.includes("send_message_to_thread"));
+      assert.ok(toolNames.includes("create_thread"));
+      assert.ok(toolNames.includes("list_threads"));
+      assert.match(upstreamBody.system, /Codex app thread tools/);
     } finally {
       setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
     }
@@ -799,6 +951,21 @@ function modelConfig({ slug, upstreamModel, inputModalities = ["text"] }) {
     upstreamModel,
     contextWindow: 128000,
     inputModalities,
+  };
+}
+
+function loadedCodexAppTool() {
+  return {
+    type: "function",
+    name: "navigate_to_codex_page",
+    description: "Navigate the most recently focused main Codex window to a thread.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: { type: "string" },
+      },
+      required: ["threadId"],
+    },
   };
 }
 
