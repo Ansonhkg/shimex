@@ -1,10 +1,11 @@
-import { chatCompletionToResponse, chatToResponsesRequest } from "../openai-compatible/translate.js";
+import { chatCompletionToResponse, chatToResponsesRequest, codexAppToolHint, ensureCodexAppThreadTools } from "../openai-compatible/translate.js";
 
 export function responsesToAnthropic(body, upstreamModel, maxOutputTokens = null) {
   return chatToAnthropic(chatLikeFromResponses(body, upstreamModel), upstreamModel, maxOutputTokens);
 }
 
 export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
+  const tools = ensureCodexAppThreadTools(body.tools);
   const system = [];
   const messages = [];
   for (const message of body.messages || []) {
@@ -42,6 +43,10 @@ export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
     }
     appendMessage(messages, "user", chatContentToAnthropicContent(message.content));
   }
+  const toolHint = codexAppToolHint(tools);
+  if (toolHint) {
+    system.push(toolHint);
+  }
   const request = {
     model: upstreamModel,
     messages: messages.length ? messages : [{ role: "user", content: "" }],
@@ -53,9 +58,9 @@ export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
   }
   copyIfPresent(body, request, "temperature");
   copyIfPresent(body, request, "top_p");
-  const tools = chatToolsToAnthropicTools(body.tools);
-  if (tools.length) {
-    request.tools = tools;
+  const anthropicTools = chatToolsToAnthropicTools(tools);
+  if (anthropicTools.length) {
+    request.tools = anthropicTools;
   }
   return request;
 }
