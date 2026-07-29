@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { patchExtractedBundles } from "../src/clients/codex/patch.js";
+import { patchExtractedBundles, patchIabPeerAuthorizationBypass } from "../src/clients/codex/patch.js";
 
 describe("Codex app bundle patching", () => {
   test("shows hidden custom models and patches previous sidebar provider filters", async () => {
@@ -22,6 +22,37 @@ describe("Codex app bundle patching", () => {
     await assertPatchRoundTrip(
       "class X{async listRecentThreads({cursor:e,limit:t,background:n=!1}){let r={limit:t,cursor:e,sortKey:this.params.requestClient.getCompatibleThreadSortKey(this.recentConversationSortKey),modelProviders:null,archived:!1,sourceKinds:ie,useStateDbOnly:!0},i=await this.params.requestClient.sendRequest(`thread/list`,r,n?{priority:`background`,source:`recent_threads`}:{source:`recent_threads`});return{...i,data:i.data.filter(e=>e.ephemeral!==!0)}}}",
     );
+  });
+
+  test("bypasses iab peer auth without switching to Dev flavor", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-codex-iab-"));
+    const build = join(root, ".vite", "build");
+    await mkdir(build, { recursive: true });
+    await writeFile(join(root, "package.json"), JSON.stringify({
+      name: "openai-codex-electron",
+      codexBuildFlavor: "dev",
+      codexShimexIabPeerAuthBypass: true,
+      version: "26.721.81911",
+    }, null, 2));
+    await writeFile(join(build, "main.js"), [
+      "function shouldIncludeBrowserUsePeerAuthorization(e,t){return t===`darwin`&&d.includes(e)}",
+      "function shouldIncludeBrowserUsePeerAuthorization(e,t){return t===`darwin`&&P5.includes(e)}",
+    ].join("\n"));
+
+    const first = await patchIabPeerAuthorizationBypass(root);
+    assert.equal(first.changed, true);
+    assert.equal(first.matches, 1);
+    assert.equal(first.packageChanged, true);
+    const payload = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    assert.equal(payload.codexBuildFlavor, "prod");
+    assert.equal(payload.codexShimexIabPeerAuthBypass, undefined);
+    const main = await readFile(join(build, "main.js"), "utf8");
+    assert.match(main, /shouldIncludeBrowserUsePeerAuthorization\(e,t\)\{return!1\}/g);
+    assert.equal([...main.matchAll(/return!1/g)].length, 2);
+
+    const second = await patchIabPeerAuthorizationBypass(root);
+    assert.equal(second.changed, false);
+    assert.equal(second.reason, "already-bypassed");
   });
 
   test("patches the Codex 26.721 picker visibility condition", async () => {

@@ -56,18 +56,39 @@ export async function patchManagedCodexApp(config) {
   await rm(workdir, { recursive: true, force: true });
   await mkdir(workdir, { recursive: true });
   await run("npx", ["--yes", "asar", "extract", appAsar, workdir]);
-  const changed = await patchExtractedBundles(workdir);
-  if (!changed.changed) {
+  const bundlePatch = await patchExtractedBundles(workdir);
+  const iabPatch = await patchIabPeerAuthorizationBypass(workdir);
+  const asarChanged = Boolean(bundlePatch.changed || iabPatch.changed);
+  if (!asarChanged) {
     if (iconPatch.changed) {
       await signManagedApp(paths.managedApp);
-      return { patched: true, appAsar, infoPlist, icon: iconPatch, bundleReason: changed.reason || "already-patched" };
+      return {
+        patched: true,
+        appAsar,
+        infoPlist,
+        icon: iconPatch,
+        bundleReason: bundlePatch.reason || "already-patched",
+        iab: iabPatch,
+      };
     }
-    return { patched: false, reason: changed.reason || "already-patched", icon: iconPatch };
+    return {
+      patched: false,
+      reason: bundlePatch.reason || iabPatch.reason || "already-patched",
+      icon: iconPatch,
+      iab: iabPatch,
+    };
   }
   await run("npx", ["--yes", "asar", "pack", workdir, appAsar]);
   await updateAsarIntegrity(appAsar, infoPlist);
   await signManagedApp(paths.managedApp);
-  return { patched: true, appAsar, infoPlist, icon: iconPatch };
+  return {
+    patched: true,
+    appAsar,
+    infoPlist,
+    icon: iconPatch,
+    bundle: bundlePatch,
+    iab: iabPatch,
+  };
 }
 
 export async function patchExtractedBundles(workdir) {
@@ -85,6 +106,89 @@ export async function patchExtractedBundles(workdir) {
     changed ||= result;
   }
   return { changed };
+}
+
+// Prod requires OpenAI Developer-ID peer auth for the iab native pipe. Shimex
+// re-signs ad-hoc, so that check always fails and only Chrome remains.
+// Forcing this gate off restores iab without switching to the Dev flavor
+// (Dev expects a bundled git that prod packages do not ship).
+// Removal condition: drop when the managed app is OpenAI-team-signed or peer
+// auth accepts the Shimex identity.
+const IAB_PEER_AUTH_GATE = {
+  name: "iab-peer-auth-bypass",
+  already: /shouldIncludeBrowserUsePeerAuthorization\([A-Za-z_$][\w$]*,[A-Za-z_$][\w$]*\)\{return!1\}/,
+  match: /shouldIncludeBrowserUsePeerAuthorization\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{return \2===`darwin`&&[A-Za-z_$][\w$]*\.includes\(\1\)\}/g,
+  replace: "shouldIncludeBrowserUsePeerAuthorization($1,$2){return!1}",
+};
+
+/**
+ * Disable darwin browser-use peer authorization so ad-hoc signed Shimex.app
+ * can still host the in-app browser native pipe.
+ */
+export async function patchIabPeerAuthorizationBypass(workdir) {
+  const packagePath = join(workdir, "package.json");
+  let packageChanged = false;
+  if (await exists(packagePath)) {
+    // Undo an earlier "dev flavor" approach that breaks startup (bundled git).
+    try {
+      const payload = JSON.parse(await readFile(packagePath, "utf8"));
+      if (payload.codexBuildFlavor === "dev" || payload.codexShimexIabPeerAuthBypass) {
+        payload.codexBuildFlavor = "prod";
+        delete payload.codexShimexIabPeerAuthBypass;
+        await writeFile(packagePath, `${JSON.stringify(payload, null, 2)}\n`);
+        packageChanged = true;
+      }
+    } catch {
+      // Keep going; JS gate patch is the primary fix.
+    }
+  }
+
+  const buildDir = join(workdir, ".vite", "build");
+  if (!await exists(buildDir)) {
+    return {
+      changed: packageChanged,
+      reason: packageChanged ? "reverted-dev-flavor" : "vite-build-missing",
+      packageChanged,
+    };
+  }
+  const files = (await listFiles(buildDir)).filter((file) => file.endsWith(".js"));
+  let matches = 0;
+  let already = 0;
+  for (const file of files) {
+    const text = await readFile(file, "utf8").catch(() => "");
+    if (!text.includes("shouldIncludeBrowserUsePeerAuthorization")) {
+      continue;
+    }
+    if (IAB_PEER_AUTH_GATE.already.test(text) && !IAB_PEER_AUTH_GATE.match.test(text)) {
+      already += 1;
+      continue;
+    }
+    // Reset lastIndex after the test above on the global match regex.
+    IAB_PEER_AUTH_GATE.match.lastIndex = 0;
+    const next = text.replace(IAB_PEER_AUTH_GATE.match, IAB_PEER_AUTH_GATE.replace);
+    if (next !== text) {
+      await writeFile(file, next);
+      matches += 1;
+    } else if (IAB_PEER_AUTH_GATE.already.test(text)) {
+      already += 1;
+    }
+  }
+
+  if (!matches && !packageChanged) {
+    return {
+      changed: false,
+      reason: already ? "already-bypassed" : "peer-auth-gate-missing",
+      matches,
+      already,
+    };
+  }
+  return {
+    changed: true,
+    reason: matches ? "peer-auth-bypassed" : "reverted-dev-flavor",
+    matches,
+    already,
+    packageChanged,
+  };
 }
 
 async function replaceInMatchingFile(files, patch) {

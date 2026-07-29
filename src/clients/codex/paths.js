@@ -1,5 +1,13 @@
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expandHome } from "../../core/paths.js";
+
+/** Known browser-client.mjs digests accepted by Codex Node REPL. */
+const DEFAULT_BROWSER_CLIENT_HASHES = [
+  "14e425736668bf21b5b39f2cc022ee8684728617fb5c49f35533c2e349f47193",
+  "6d25aa7656feac858f3a3bdaea5bcbab0dbfd426c9de8e6931ce90c399ee8e4f",
+];
 
 export function resolveCodexPaths(config) {
   const sourceApp = config.codex.sourceApp === "auto"
@@ -37,7 +45,105 @@ export function codexConfigText(config, defaultModelSlug) {
     "stream_idle_timeout_ms = 600000",
     "",
     ...mcpServerConfig(config.codex.mcpServers || []),
+    ...browserUseConfig(paths),
   ].join("\n");
+}
+
+function browserUseConfig(paths) {
+  const marketplace = join(paths.profileHome, ".tmp/bundled-marketplaces/openai-bundled");
+  const cuaNode = join(paths.managedApp, "Contents/Resources/cua_node");
+  const nodeRepl = join(cuaNode, "bin/node_repl");
+  const nodeBin = join(cuaNode, "bin/node");
+  const nodeModules = join(cuaNode, "lib/node_modules");
+  const clientHashes = trustedBrowserClientHashes(paths.profileHome);
+  const appVersion = browserPluginVersion(paths.profileHome) || managedAppVersion(paths.managedApp) || "0.0.0";
+
+  return [
+    // Keep links inside the managed app's built-in browser when available.
+    "[desktop]",
+    'open-link-in-target-preference = "in-app-browser"',
+    "",
+    // Enable the bundled Browser plugin so Settings no longer reports it unavailable.
+    ...(existsSync(marketplace) ? [
+      "[marketplaces.openai-bundled]",
+      'source_type = "local"',
+      `source = "${tomlEscape(marketplace)}"`,
+      "",
+    ] : []),
+    '[plugins."browser@openai-bundled"]',
+    "enabled = true",
+    "",
+    // Browser skill drives the in-app browser through Node REPL + browser-client.
+    "[mcp_servers.node_repl]",
+    "args = []",
+    `command = "${tomlEscape(nodeRepl)}"`,
+    "startup_timeout_sec = 120",
+    "enabled = true",
+    "required = false",
+    "",
+    "[mcp_servers.node_repl.env]",
+    'NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"',
+    `NODE_REPL_NODE_MODULE_DIRS = "${tomlEscape(nodeModules)}"`,
+    `NODE_REPL_NODE_PATH = "${tomlEscape(nodeBin)}"`,
+    `NODE_REPL_TRUSTED_CODE_PATHS = "${tomlEscape(paths.profileHome)}"`,
+    `CODEX_HOME = "${tomlEscape(paths.profileHome)}"`,
+    `NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "${tomlEscape(clientHashes)}"`,
+    'BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"',
+    'NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."',
+    'BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"',
+    `BROWSER_USE_CODEX_APP_VERSION = "${tomlEscape(appVersion)}"`,
+    "",
+    "[shell_environment_policy.set]",
+    'BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"',
+    `NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "${tomlEscape(clientHashes)}"`,
+    `NODE_REPL_TRUSTED_CODE_PATHS = "${tomlEscape(paths.profileHome)}"`,
+    "",
+  ];
+}
+
+function trustedBrowserClientHashes(profileHome) {
+  const hashes = new Set(DEFAULT_BROWSER_CLIENT_HASHES);
+  const cacheRoot = join(profileHome, "plugins/cache/openai-bundled/browser");
+  if (!existsSync(cacheRoot)) {
+    return [...hashes].join(",");
+  }
+  try {
+    for (const version of readdirSync(cacheRoot)) {
+      const clientPath = join(cacheRoot, version, "scripts/browser-client.mjs");
+      if (!existsSync(clientPath)) {
+        continue;
+      }
+      const digest = createHash("sha256").update(readFileSync(clientPath)).digest("hex");
+      hashes.add(digest);
+    }
+  } catch {
+    // Keep defaults when the cache cannot be scanned.
+  }
+  return [...hashes].join(",");
+}
+
+function browserPluginVersion(profileHome) {
+  const cacheRoot = join(profileHome, "plugins/cache/openai-bundled/browser");
+  if (!existsSync(cacheRoot)) {
+    return "";
+  }
+  try {
+    const versions = readdirSync(cacheRoot).filter((name) => !name.startsWith("."));
+    versions.sort();
+    return versions.at(-1) || "";
+  } catch {
+    return "";
+  }
+}
+
+function managedAppVersion(managedApp) {
+  try {
+    const plist = readFileSync(join(managedApp, "Contents/Info.plist"), "utf8");
+    const match = plist.match(/CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
+    return match?.[1]?.trim() || "";
+  } catch {
+    return "";
+  }
 }
 
 function mcpServerConfig(servers) {

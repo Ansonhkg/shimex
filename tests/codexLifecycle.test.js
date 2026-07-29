@@ -47,6 +47,12 @@ describe("Codex managed app lifecycle", () => {
     assert.match(codexConfig, /\[mcp_servers\.dromio-http\]/);
     assert.match(codexConfig, /url = "http:\/\/127\.0\.0\.1:4318\/mcp"/);
     assert.match(codexConfig, /bearer_token_env_var = "DROMIO_MCP_TOKEN"/);
+    assert.match(codexConfig, /\[plugins\."browser@openai-bundled"\]/);
+    assert.match(codexConfig, /\[mcp_servers\.node_repl\]/);
+    assert.match(codexConfig, /open-link-in-target-preference = "in-app-browser"/);
+    assert.match(codexConfig, /BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"/);
+    assert.match(codexConfig, new RegExp(`command = "${managedApp.replaceAll("/", "\\/")}\\/Contents\\/Resources\\/cua_node\\/bin\\/node_repl"`));
+    assert.match(codexConfig, new RegExp(`CODEX_HOME = "${profileHome.replaceAll("/", "\\/")}"`));
     const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
     assert.equal(auth.auth_mode, "apikey");
     assert.equal(auth.OPENAI_API_KEY, "shimex-local-api-key");
