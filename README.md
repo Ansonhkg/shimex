@@ -135,6 +135,7 @@ src/
     ├── openai-compatible/   Shared protocol adapter for OpenAI-compatible APIs
     ├── anthropic/           Anthropic Messages adapter
     ├── deepseek/            DeepSeek (Anthropic-compatible)
+    ├── grok/                Grok subscription session (CLI proxy)
     ├── cloudflare-workers-ai/
     ├── lm-studio/           Local LM Studio (OpenAI-compatible)
     ├── ollama/              Local Ollama (OpenAI-compatible)
@@ -151,6 +152,7 @@ src/
 |---|---|---|---|
 | Anthropic | `anthropic` | Messages API | Direct Anthropic API |
 | DeepSeek | `deepseek` | Anthropic-compatible | `api.deepseek.com/anthropic` |
+| Grok | `grok` | Chat Completions | Session auth via `~/.grok/auth.json` / Grok CLI subscription |
 | OpenAI Compatible | `openai-compatible` | Chat Completions | Generic endpoint |
 | OpenAI Responses | `openai-responses` | Responses API | |
 | Cloudflare Workers AI | `cloudflare-workers-ai` | REST | Account-scoped |
@@ -191,7 +193,7 @@ Shimex exposes an OpenAI-compatible HTTP/SSE server at `https://shimex.localhost
 
 | Protocol | Providers | Request shape | Response shape |
 |---|---|---|---|
-| **OpenAI Chat Completions** | `openai-compatible`, `ollama`, `lm-studio`, `cloudflare-workers-ai`, `cline-pass` | Chat messages with tools, streaming | Chat completion + SSE chunks |
+| **OpenAI Chat Completions** | `openai-compatible`, `ollama`, `lm-studio`, `cloudflare-workers-ai`, `cline-pass`, `grok` | Chat messages with tools, streaming | Chat completion + SSE chunks |
 | **OpenAI Responses** | `openai-responses`, `chatgpt-codex` | Responses API input/output items | Response object + SSE events |
 | **Anthropic Messages** | `anthropic`, `deepseek` | Messages with tool use blocks | Messages response (translated) |
 | **Cursor Agent CLI** | `cursor-composer` | Prompt text via `cursor-agent` subprocess | Text + structured events |
@@ -223,6 +225,7 @@ Streaming is supported for all combinations. Non-streaming upstream APIs (Anthro
 | `cloudflare-workers-ai` | byok | `CLOUDFLARE_AUTH_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only configs) |
 | `cursor-composer` | external-cli-session | `cursor-agent status` | Static | ✅ | ✅ | ✅ | ❌ | ❌ (text-only bridge) |
 | `deepseek` | byok | `DEEPSEEK_API_KEY` | Configured | ✅ | ✅ | ✅ (buffered) | ✅ | ❌ (text-only models) |
+| `grok` | external-session | `grok login` / `~/.grok/auth.json` | Local CLI model cache | ✅ | ✅ | ✅ | ✅ | ✅ (Grok 4.5) |
 | `lm-studio` | local | None | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only) |
 | `ollama` | local | None | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only) |
 | `openai-compatible` | byok | Env or header | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | Per-model |

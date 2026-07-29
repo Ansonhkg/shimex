@@ -41,6 +41,12 @@ describe("Codex managed app lifecycle", () => {
     assert.match(codexConfig, /model_provider = "shimex"/);
     assert.match(codexConfig, /base_url = "https:\/\/shimex\.localhost\/v1"/);
     assert.match(codexConfig, /web_search = "live"/);
+    assert.match(codexConfig, /\[mcp_servers\.dromio-local\]/);
+    assert.match(codexConfig, /command = "node"/);
+    assert.match(codexConfig, /args = \["server\.mjs", "--stdio"\]/);
+    assert.match(codexConfig, /\[mcp_servers\.dromio-http\]/);
+    assert.match(codexConfig, /url = "http:\/\/127\.0\.0\.1:4318\/mcp"/);
+    assert.match(codexConfig, /bearer_token_env_var = "DROMIO_MCP_TOKEN"/);
     const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
     assert.equal(auth.auth_mode, "apikey");
     assert.equal(auth.OPENAI_API_KEY, "shimex-local-api-key");
@@ -66,6 +72,16 @@ function testConfig({ sourceApp, managedApp, runtimeHome, profileHome }) {
       profileHome,
       userDataDir: join(profileHome, "user-data"),
       webSearch: "live",
+      mcpServers: [
+        { id: "dromio-local", command: "node", args: ["server.mjs", "--stdio"], enabled: true },
+        {
+          id: "dromio-http",
+          url: "http://127.0.0.1:4318/mcp",
+          bearerTokenEnvVar: "DROMIO_MCP_TOKEN",
+          enabled: true,
+          required: true,
+        },
+      ],
     },
     providers: [],
   };

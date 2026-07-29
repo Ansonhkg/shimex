@@ -11,8 +11,11 @@ const APP_ASAR_BACKUP_NAME = "app.asar.before-shimex-model-picker-patch";
 const INFO_PLIST_BACKUP_NAME = "Info.plist.before-shimex-model-picker-patch";
 const MODEL_PICKER_PATCH = {
   name: "model-picker-hidden-models",
-  already: /function\s+[A-Za-z_$][\w$]*\(\{authMethod:[^}]*?,useHiddenModels:[A-Za-z_$][\w$]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{if\(!0\)\{/,
-  match: /(function\s+[A-Za-z_$][\w$]*\(\{authMethod:[^}]*?,useHiddenModels:[A-Za-z_$][\w$]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{)if\([A-Za-z_$][\w$]*\?[A-Za-z_$][\w$]*\.has\([A-Za-z_$][\w$]*\.model\):![A-Za-z_$][\w$]*\.hidden\)\{/,
+  // Codex 26.721 added `additionalAvailableModels` before `authMethod` and
+  // wrapped the visibility check in an availability check. Match structure,
+  // rather than minifier-generated identifiers, so both variants keep working.
+  already: /function\s+[A-Za-z_$][\w$]*\(\{(?=[^}]*\bauthMethod:)(?=[^}]*\buseHiddenModels:)[^}]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{if\(!0\)\{/,
+  match: /(function\s+[A-Za-z_$][\w$]*\(\{(?=[^}]*\bauthMethod:)(?=[^}]*\buseHiddenModels:)[^}]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{)if\([^{}]{1,1000}\)\{/,
   replace: "$1if(!0){",
 };
 const SIDEBAR_RECENT_THREADS_PATCH = {

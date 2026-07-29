@@ -1,4 +1,4 @@
-import { authMissingResult, joinEndpoint, openAiHeaders, readSseJson, upstreamError } from "../http.js";
+import { joinEndpoint, readSseJson, upstreamError } from "../http.js";
 import { jsonResult, streamResult, validateModelInput } from "../routes.js";
 import {
   chatChunkToResponsesEvents,
@@ -8,17 +8,31 @@ import {
   finishChatResponsesStream,
   responsePayloadToEvents,
   responsesToChat,
-  rewriteResponseModel,
   unwrapOpenAICompatiblePayload,
-} from "./translate.js";
+} from "../openai-compatible/translate.js";import { resolveGrokAuth } from "./auth.js";
+import { DEFAULT_GROK_ENDPOINT, resolveGrokClientVersion } from "./index.js";
 
-export async function handleOpenAiCompatibleRequest(route, pathname, body, options = {}) {
+export async function handleGrokRequest(route, pathname, body, options = {}) {
   const unsupported = validateModelInput(route, body);
   if (unsupported) {
     return unsupported;
   }
+  const auth = await resolveGrokAuth({
+    authPath: route.providerConfig.options?.auth_path || route.providerConfig.options?.authPath || options.authPath,
+    fetch: options.fetch || fetch,
+  });
+  if (!auth?.accessToken) {
+    return jsonResult({
+      error: {
+        message: "Grok session auth is not available. Run `grok login` and keep ~/.grok/auth.json readable.",
+        type: "shimex_auth_unavailable",
+      },
+    }, 401);
+  }
+  const endpoint = String(route.providerConfig.endpoint || DEFAULT_GROK_ENDPOINT).replace(/\/+$/, "");
+  const clientVersion = await resolveGrokClientVersion(route.providerConfig, options);
   if (pathname === "/v1/chat/completions") {
-    return await postChat(route, { ...body, model: route.model.upstreamModel }, {
+    return await postChat(route, endpoint, auth, clientVersion, { ...body, model: route.model.upstreamModel }, {
       asResponses: false,
       requestedModel: route.model.slug,
       fetch: options.fetch || fetch,
@@ -26,7 +40,7 @@ export async function handleOpenAiCompatibleRequest(route, pathname, body, optio
   }
   if (pathname === "/v1/responses" || pathname === "/v1/responses/compact") {
     const chatBody = responsesToChat(body, route.model.upstreamModel);
-    return await postChat(route, providerChatBody(route, chatBody), {
+    return await postChat(route, endpoint, auth, clientVersion, chatBody, {
       asResponses: true,
       requestedModel: route.model.slug,
       toolNamespaceMap: createToolNamespaceMap(body.tools),
@@ -36,20 +50,24 @@ export async function handleOpenAiCompatibleRequest(route, pathname, body, optio
   return null;
 }
 
-async function postChat(route, body, options) {
-  const headers = openAiHeaders(route, body.stream ? "text/event-stream" : "application/json");
-  if (!headers) {
-    return jsonResult(authMissingResult(route.provider.id), 401);
-  }
-  const upstream = await options.fetch(joinEndpoint(route.providerConfig.endpoint, "/chat/completions"), {
+async function postChat(route, endpoint, auth, clientVersion, body, options) {
+  const wantsStream = Boolean(body.stream);
+  const upstream = await options.fetch(joinEndpoint(endpoint, "/chat/completions"), {
     method: "POST",
-    headers,
-    body: JSON.stringify(providerChatBody(route, body)),
+    headers: {
+      authorization: `Bearer ${auth.accessToken}`,
+      "content-type": "application/json",
+      accept: wantsStream ? "text/event-stream" : "application/json",
+      "user-agent": `xai-grok-build/${clientVersion}`,
+      "x-grok-client-version": clientVersion,
+      "x-grok-client-surface": "grok-build",
+    },
+    body: JSON.stringify(body),
   });
   if (!upstream.ok) {
     return jsonResult(await upstreamError(upstream), upstream.status);
   }
-  if (body.stream) {
+  if (wantsStream) {
     const contentType = upstream.headers.get("content-type") || "";
     if (contentType.toLowerCase().includes("text/event-stream")) {
       return streamResult(async (response) => {
@@ -100,62 +118,9 @@ async function streamChatPassThrough(response, upstream, requestedModel) {
   response.write("data: [DONE]\n\n");
 }
 
-function providerChatBody(route, body) {
-  const merged = { ...body };
-  if (route.provider.id === "lm-studio" && Array.isArray(merged.messages)) {
-    merged.messages = normalizeLmStudioMessages(merged.messages);
-  }
-  const extra = route.providerConfig.options.extra_body || route.providerConfig.options.extraBody;
-  if (extra && typeof extra === "object" && !Array.isArray(extra)) {
-    for (const [key, value] of Object.entries(extra)) {
-      if (value && typeof value === "object" && !Array.isArray(value) && merged[key] && typeof merged[key] === "object") {
-        merged[key] = { ...merged[key], ...value };
-      } else {
-        merged[key] = value;
-      }
-    }
-  }
-  if (route.provider.id === "cloudflare-workers-ai" && merged.max_tokens && !merged.max_completion_tokens) {
-    merged.max_completion_tokens = merged.max_tokens;
-    delete merged.max_tokens;
-  }
-  return merged;
-}
-
-function normalizeLmStudioMessages(messages) {
-  const normalized = [];
-  for (const message of messages) {
-    if (message?.role !== "tool" || !Array.isArray(message.content)) {
-      normalized.push(message);
-      continue;
-    }
-    const text = message.content
-      .filter((part) => part?.type === "text" && typeof part.text === "string")
-      .map((part) => part.text)
-      .join("\n") || "Tool returned an image.";
-    const images = message.content
-      .filter((part) => part?.type === "image_url" && part.image_url)
-      .map((part) => ({
-        ...part,
-        image_url: typeof part.image_url === "string" ? { url: part.image_url } : part.image_url,
-      }));
-    normalized.push({ ...message, content: text });
-    if (images.length) {
-      normalized.push({
-        role: "user",
-        content: [
-          { type: "text", text: "Image returned by the preceding tool call." },
-          ...images,
-        ],
-      });
-    }
-  }
-  return normalized;
-}
-
 function rewriteChatModel(payload, requestedModel) {
-  if (payload && typeof payload === "object" && payload.model) {
-    payload.model = requestedModel;
+  if (!payload || typeof payload !== "object") {
+    return payload;
   }
-  return payload;
+  return { ...payload, model: requestedModel };
 }

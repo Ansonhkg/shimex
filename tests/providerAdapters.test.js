@@ -196,6 +196,56 @@ describe("Provider request adapters", () => {
     ]);
   });
 
+  test("moves tool screenshots into an LM Studio-compatible vision turn", async () => {
+    const calls = [];
+    await handleProviderModelRequest(
+      testConfig({
+        id: "lm-studio",
+        endpoint: "http://127.0.0.1:1234/v1",
+        models: [modelConfig({ slug: "lm-local", upstreamModel: "local-upstream", inputModalities: ["text", "image"] })],
+      }),
+      "/v1/chat/completions",
+      {
+        model: "lm-local",
+        messages: [
+          { role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "browser_screenshot", arguments: "{}" } }] },
+          {
+            role: "tool",
+            tool_call_id: "call_1",
+            content: [
+              { type: "text", text: "Image loaded into your context." },
+              { type: "image_url", image_url: "data:image/png;base64,abc" },
+            ],
+          },
+        ],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_1",
+            choices: [{ message: { role: "assistant", content: "I can see the screenshot." } }],
+          });
+        },
+      },
+    );
+
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.deepEqual(upstreamBody.messages[1], {
+      role: "tool",
+      tool_call_id: "call_1",
+      content: "Image loaded into your context.",
+    });
+    assert.deepEqual(upstreamBody.messages[2], {
+      role: "user",
+      content: [
+        { type: "text", text: "Image returned by the preceding tool call." },
+        { type: "image_url", image_url: { url: "data:image/png;base64,abc" } },
+      ],
+    });
+  });
+
   test("rejects image input when configured model is text-only", async () => {
     const result = await handleProviderModelRequest(
       testConfig({
@@ -219,6 +269,132 @@ describe("Provider request adapters", () => {
 
     assert.equal(result.status, 400);
     assert.match(JSON.parse(result.body).error.message, /does not support image/);
+  });
+
+  test("routes Responses requests through Grok session auth and chat proxy", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-route-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      "https://auth.x.ai::test-client": {
+        auth_mode: "oidc",
+        key: "grok-session-token",
+        refresh_token: "grok-refresh-token",
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        oidc_client_id: "test-client",
+        oidc_issuer: "https://auth.x.ai",
+      },
+    }));
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      {
+        providers: [{
+          id: "grok",
+          enabled: true,
+          endpoint: "https://cli-chat-proxy.grok.com/v1",
+          auth: { type: "external-grok-login" },
+          models: [modelConfig({
+            slug: "grok-4-5",
+            upstreamModel: "grok-4.5",
+            inputModalities: ["text", "image"],
+          })],
+          options: {
+            auth_path: authPath,
+            client_version: "0.2.114",
+            show_without_auth: true,
+          },
+        }],
+      },
+      "/v1/responses",
+      {
+        model: "grok-4-5",
+        input: "hello",
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_grok",
+            created: 123,
+            model: "grok-4.5",
+            choices: [{ message: { role: "assistant", content: "hello from grok" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://cli-chat-proxy.grok.com/v1/chat/completions");
+    assert.equal(calls[0].init.headers.authorization, "Bearer grok-session-token");
+    assert.equal(calls[0].init.headers["x-grok-client-version"], "0.2.114");
+    assert.equal(JSON.parse(calls[0].init.body).model, "grok-4.5");
+    const payload = JSON.parse(result.body);
+    assert.equal(payload.model, "grok-4-5");
+    assert.equal(payload.output[0].content[0].text, "hello from grok");
+  });
+
+  test("forwards Grok image inputs when the model is image-capable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-image-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      "https://auth.x.ai::test-client": {
+        auth_mode: "oidc",
+        key: "grok-session-token",
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+    }));
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      {
+        providers: [{
+          id: "grok",
+          enabled: true,
+          endpoint: "https://cli-chat-proxy.grok.com/v1",
+          auth: { type: "external-grok-login" },
+          models: [modelConfig({
+            slug: "grok-4-5",
+            upstreamModel: "grok-4.5",
+            inputModalities: ["text", "image"],
+          })],
+          options: {
+            auth_path: authPath,
+            client_version: "0.2.114",
+            show_without_auth: true,
+          },
+        }],
+      },
+      "/v1/responses",
+      {
+        model: "grok-4-5",
+        input: [{
+          role: "user",
+          content: [
+            { type: "input_text", text: "describe" },
+            { type: "input_image", image_url: "data:image/png;base64,abc" },
+          ],
+        }],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_grok_img",
+            created: 123,
+            model: "grok-4.5",
+            choices: [{ message: { role: "assistant", content: "a small image" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    const user = upstreamBody.messages.find((message) => message.role === "user");
+    assert.ok(Array.isArray(user.content));
+    assert.ok(user.content.some((part) => part.type === "image_url"));
   });
 
   test("routes chat requests to Responses-compatible endpoints", async () => {
@@ -313,6 +489,98 @@ describe("Provider request adapters", () => {
       const payload = JSON.parse(result.body);
       assert.equal(payload.model, "claude-test");
       assert.equal(payload.output[0].content[0].text, "a small image");
+    } finally {
+      setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
+    }
+  });
+
+  test("round-trips opaque Anthropic thinking blocks with parallel tool calls", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const calls = [];
+    const config = testConfig({
+      id: "anthropic",
+      endpoint: "https://api.anthropic.com/v1",
+      auth: { type: "env", name: "ANTHROPIC_API_KEY" },
+      models: [modelConfig({ slug: "claude-test", upstreamModel: "claude-upstream" })],
+    });
+    const tools = ["ping_a", "ping_b"].map((name) => ({
+      type: "function",
+      name,
+      description: name,
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    }));
+    const user = { role: "user", content: [{ type: "input_text", text: "call both" }] };
+    try {
+      const fetch = async (url, init) => {
+        calls.push({ url, init });
+        if (calls.length === 1) {
+          return jsonResponse({
+            id: "msg_thinking",
+            model: "claude-upstream",
+            stop_reason: "tool_use",
+            content: [
+              { type: "thinking", thinking: "private reasoning", signature: "signed-thinking" },
+              { type: "tool_use", id: "call_a", name: "ping_a", input: {} },
+              { type: "tool_use", id: "call_b", name: "ping_b", input: {} },
+            ],
+          });
+        }
+        return jsonResponse({
+          id: "msg_done",
+          model: "claude-upstream",
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "done" }],
+        });
+      };
+
+      const first = await handleProviderModelRequest(config, "/v1/responses", {
+        model: "claude-test",
+        input: [user],
+        tools,
+        stream: false,
+      }, { fetch });
+      const firstPayload = JSON.parse(first.body);
+      assert.deepEqual(firstPayload.output.map((item) => item.type), [
+        "reasoning",
+        "function_call",
+        "function_call",
+      ]);
+      assert.deepEqual(firstPayload.output[0].summary, []);
+      assert.match(firstPayload.output[0].encrypted_content, /^shimex-anthropic-thinking:/);
+
+      const second = await handleProviderModelRequest(config, "/v1/responses", {
+        model: "claude-test",
+        input: [
+          user,
+          ...firstPayload.output,
+          { type: "function_call_output", call_id: "call_a", output: "pong a" },
+          { type: "function_call_output", call_id: "call_b", output: "pong b" },
+        ],
+        tools,
+        stream: false,
+      }, { fetch });
+
+      assert.equal(second.status, 200);
+      const replay = JSON.parse(calls[1].init.body);
+      assert.deepEqual(replay.messages, [
+        { role: "user", content: "call both" },
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "private reasoning", signature: "signed-thinking" },
+            { type: "tool_use", id: "call_a", name: "ping_a", input: {} },
+            { type: "tool_use", id: "call_b", name: "ping_b", input: {} },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "call_a", content: "pong a" },
+            { type: "tool_result", tool_use_id: "call_b", content: "pong b" },
+          ],
+        },
+      ]);
     } finally {
       setOrDeleteEnv("ANTHROPIC_API_KEY", previous);
     }

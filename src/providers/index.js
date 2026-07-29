@@ -5,6 +5,7 @@ import { clinePassProvider } from "./cline-pass/index.js";
 import { cloudflareWorkersAiProvider } from "./cloudflare-workers-ai/index.js";
 import { cursorComposerProvider } from "./cursor-composer/index.js";
 import { deepSeekProvider } from "./deepseek/index.js";
+import { grokProvider } from "./grok/index.js";
 import { lmStudioProvider } from "./lm-studio/index.js";
 import { localRouterProvider } from "./local-router/index.js";
 import { ollamaProvider } from "./ollama/index.js";
@@ -19,6 +20,7 @@ const providers = [
   cloudflareWorkersAiProvider,
   cursorComposerProvider,
   deepSeekProvider,
+  grokProvider,
   lmStudioProvider,
   localRouterProvider,
   ollamaProvider,

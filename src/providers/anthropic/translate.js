@@ -1,5 +1,7 @@
 import { chatCompletionToResponse, chatToResponsesRequest } from "../openai-compatible/translate.js";
 
+const THINKING_ENVELOPE_PREFIX = "shimex-anthropic-thinking:";
+
 export function responsesToAnthropic(body, upstreamModel, maxOutputTokens = null) {
   return chatToAnthropic(chatLikeFromResponses(body, upstreamModel), upstreamModel, maxOutputTokens);
 }
@@ -25,7 +27,10 @@ export function chatToAnthropic(body, upstreamModel, maxOutputTokens = null) {
       continue;
     }
     if (role === "assistant") {
-      const content = message.content ? chatContentToAnthropicBlocks(message.content) : [];
+      const content = [
+        ...anthropicThinkingBlocks(message.anthropicThinkingBlocks),
+        ...(message.content ? chatContentToAnthropicBlocks(message.content) : []),
+      ];
       for (const call of message.tool_calls || []) {
         const fn = call.function || {};
         content.push({
@@ -98,6 +103,16 @@ export function anthropicToChatCompletion(payload, requestedModel) {
 
 export function anthropicToResponse(payload, requestedModel, toolNamespaceMap = null) {
   const response = chatCompletionToResponse(anthropicToChatCompletion(payload, requestedModel), requestedModel, toolNamespaceMap);
+  const reasoning = (payload.content || [])
+    .filter((block) => block?.type === "thinking" || block?.type === "redacted_thinking")
+    .map((block, index) => ({
+      id: `reasoning_${index}`,
+      type: "reasoning",
+      status: "completed",
+      summary: [],
+      encrypted_content: encodeThinkingBlock(block),
+    }));
+  response.output = [...reasoning, ...(response.output || [])];
   response.usage = normalizeResponsesUsage(payload.usage);
   return response;
 }
@@ -134,6 +149,8 @@ function responseInputToChatMessages(body) {
   }
   const pendingToolCalls = new Map();
   const pendingToolCallOrder = [];
+  const pendingThinkingBlocks = [];
+  const groupedToolCallIds = new Set();
   const pushPendingToolCall = (call) => {
     const id = call.id || "call_0";
     if (!pendingToolCalls.has(id)) {
@@ -165,15 +182,20 @@ function responseInputToChatMessages(body) {
     if (!pendingToolCallOrder.length) {
       return;
     }
+    const ids = pendingToolCallOrder.splice(0);
     messages.push({
       role: "assistant",
       content: null,
-      tool_calls: pendingToolCallOrder.splice(0).flatMap((id) => {
+      ...(pendingThinkingBlocks.length
+        ? { anthropicThinkingBlocks: pendingThinkingBlocks.splice(0) }
+        : {}),
+      tool_calls: ids.flatMap((id) => {
         const call = pendingToolCalls.get(id);
         pendingToolCalls.delete(id);
         return call ? [call] : [];
       }),
     });
+    ids.forEach((id) => groupedToolCallIds.add(id));
   };
   for (const item of input) {
     if (typeof item === "string") {
@@ -194,13 +216,22 @@ function responseInputToChatMessages(body) {
       });
       continue;
     }
+    if (item.type === "reasoning") {
+      pendingThinkingBlocks.push(...decodeThinkingBlocks(item));
+      continue;
+    }
     if (item.type === "function_call_output") {
-      const toolCall = takePendingToolCall(item.call_id);
-      messages.push({
-        role: "assistant",
-        content: null,
-        tool_calls: [toolCall],
-      });
+      if (pendingThinkingBlocks.length) {
+        flushRemainingToolCalls();
+      }
+      if (!groupedToolCallIds.delete(item.call_id || "call_0")) {
+        const toolCall = takePendingToolCall(item.call_id);
+        messages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [toolCall],
+        });
+      }
       messages.push({
         role: "tool",
         tool_call_id: item.call_id || "call_0",
@@ -208,13 +239,40 @@ function responseInputToChatMessages(body) {
       });
       continue;
     }
-    messages.push({
+    const message = {
       role: normalizeRole(item.role || "user"),
       content: item.content || item,
-    });
+    };
+    if (message.role === "assistant" && pendingThinkingBlocks.length) {
+      message.anthropicThinkingBlocks = pendingThinkingBlocks.splice(0);
+    }
+    messages.push(message);
   }
   flushRemainingToolCalls();
   return messages;
+}
+
+function anthropicThinkingBlocks(value) {
+  return Array.isArray(value)
+    ? value.filter((block) => block?.type === "thinking" || block?.type === "redacted_thinking")
+    : [];
+}
+
+function encodeThinkingBlock(block) {
+  return `${THINKING_ENVELOPE_PREFIX}${Buffer.from(JSON.stringify(block), "utf8").toString("base64url")}`;
+}
+
+function decodeThinkingBlocks(item) {
+  const envelope = String(item?.encrypted_content || "");
+  if (!envelope.startsWith(THINKING_ENVELOPE_PREFIX)) {
+    return [];
+  }
+  try {
+    const block = JSON.parse(Buffer.from(envelope.slice(THINKING_ENVELOPE_PREFIX.length), "base64url").toString("utf8"));
+    return anthropicThinkingBlocks([block]);
+  } catch {
+    return [];
+  }
 }
 
 function chatContentToAnthropicContent(content) {

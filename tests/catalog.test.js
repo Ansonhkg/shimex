@@ -16,6 +16,7 @@ describe("Shimex scaffold", () => {
     assert.ok(ids.includes("openai-responses"));
     assert.ok(ids.includes("anthropic"));
     assert.ok(ids.includes("deepseek"));
+    assert.ok(ids.includes("grok"));
     assert.ok(ids.includes("cloudflare-workers-ai"));
     assert.ok(ids.includes("ollama"));
     assert.ok(ids.includes("lm-studio"));
@@ -161,8 +162,74 @@ describe("Shimex scaffold", () => {
     assert.ok(config.providers.map((provider) => provider.id).includes("cline-pass"));
     assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
     assert.ok(config.providers.find((provider) => provider.id === "deepseek")?.models.some((model) => model.slug === "deepseek-v4-pro"));
+    assert.equal(config.providers.find((provider) => provider.id === "grok")?.enabled, true);
     assert.ok(config.providers.find((provider) => provider.id === "cloudflare-workers-ai")?.models.some((model) => model.slug === "cloudflare-glm-5-2"));
     assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, true);
+  });
+
+  test("hides Grok models when session auth is unavailable", async () => {
+    const missingAuthPath = join(await mkdtemp(join(tmpdir(), "shimex-grok-auth-")), "missing-auth.json");
+    const models = await discoverModels({
+      providers: [{
+        id: "grok",
+        enabled: true,
+        endpoint: "https://cli-chat-proxy.grok.com/v1",
+        auth: { type: "external-grok-login", path: missingAuthPath },
+        models: [],
+        options: { auth_path: missingAuthPath },
+      }],
+    });
+    assert.deepEqual(models, []);
+  });
+
+  test("exposes Grok models when ~/.grok-style session auth exists", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-auth-"));
+    const authPath = join(root, "auth.json");
+    const cachePath = join(root, "models_cache.json");
+    await writeFile(authPath, JSON.stringify({
+      "https://auth.x.ai::test-client": {
+        auth_mode: "oidc",
+        key: "test-access-token",
+        refresh_token: "test-refresh-token",
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        oidc_client_id: "test-client",
+        oidc_issuer: "https://auth.x.ai",
+        email: "user@example.com",
+      },
+    }));
+    await writeFile(cachePath, JSON.stringify({
+      grok_version: "0.2.114",
+      models: {
+        "grok-4.5": {
+          info: {
+            id: "grok-4.5",
+            model: "grok-4.5",
+            name: "Grok 4.5",
+            context_window: 500000,
+            hidden: false,
+            supported_in_api: true,
+          },
+        },
+      },
+    }));
+    const models = await discoverModels({
+      providers: [{
+        id: "grok",
+        enabled: true,
+        endpoint: "https://cli-chat-proxy.grok.com/v1",
+        auth: { type: "external-grok-login" },
+        models: [],
+        options: {
+          auth_path: authPath,
+          models_cache_path: cachePath,
+        },
+      }],
+    });
+    assert.equal(models.length, 1);
+    assert.equal(models[0].slug, "grok-4-5");
+    assert.equal(models[0].providerId, "grok");
+    assert.equal(models[0].upstreamModel, "grok-4.5");
+    assert.deepEqual(models[0].inputModalities, ["text", "image"]);
   });
 
   test("allows SHIMEX_PUBLIC_URL to select the direct gateway fallback", async () => {

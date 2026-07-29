@@ -693,6 +693,7 @@ function runtime() {
       "local-router": "#EBAE42",
       "deepseek": "#4E6BFE",
       "cloudflare-workers-ai": "#FF500B",
+      "grok": "#1DA1F2",
     };
 
     function providerColor(providerId) {

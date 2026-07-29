@@ -36,7 +36,28 @@ export function codexConfigText(config, defaultModelSlug) {
     "stream_max_retries = 3",
     "stream_idle_timeout_ms = 600000",
     "",
+    ...mcpServerConfig(config.codex.mcpServers || []),
   ].join("\n");
+}
+
+function mcpServerConfig(servers) {
+  return servers.flatMap((server) => [
+    `[mcp_servers.${server.id}]`,
+    ...(server.command ? [`command = "${tomlEscape(server.command)}"`] : []),
+    ...(server.args?.length ? [`args = ${tomlStringArray(server.args)}`] : []),
+    ...(server.cwd ? [`cwd = "${tomlEscape(server.cwd)}"`] : []),
+    ...(server.url ? [`url = "${tomlEscape(server.url)}"`] : []),
+    ...(server.bearerTokenEnvVar
+      ? [`bearer_token_env_var = "${tomlEscape(server.bearerTokenEnvVar)}"`]
+      : []),
+    `enabled = ${server.enabled !== false}`,
+    `required = ${server.required === true}`,
+    "",
+  ]);
+}
+
+function tomlStringArray(values) {
+  return `[${values.map((value) => `"${tomlEscape(value)}"`).join(", ")}]`;
 }
 
 function gatewayUrl(config) {
