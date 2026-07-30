@@ -37,14 +37,14 @@ import {
 import { pairWithHost, clientStatus, setupClientDesktop } from "../core/clientMode.js";
 import { resolveAdvertiseUrl } from "../core/network.js";
 import { buildInviteOneLiner, buildInviteUrl, copyTextToClipboard, preparePairingShareCard, shareFileViaAirDrop } from "../core/share.js";
-import { hostServiceStatus, installHostService, removeHostService } from "../server/service.js";
+import { hostServiceStatus, installHostService, removeHostService, restartHostService } from "../server/service.js";
 
 const commands = {
   help: runHelp,
   version: runVersion,
   up: runUp,
   down: runDown,
-  start: runStart,
+  app: runApp,
   dev: runDev,
   exec: runExec,
   status: runStatus,
@@ -81,9 +81,10 @@ function runHelp() {
   shimex <command>
 
 start here:
-  shimex up
-  shimex down
-  shimex start
+  shimex host up
+  shimex host down
+  shimex app start
+  shimex app stop
   shimex exec [--model <slug-or-display-name>] [prompt]
   shimex dev
   shimex status
@@ -94,13 +95,15 @@ start here:
   shimex server start [--port <port>]
   shimex server ensure
   shimex server restart
+  shimex host restart
 
 commands:
   help                       Show help
   version                    Show version
-  up                         Install and start the persistent host service
-  down                       Stop and remove the persistent host service
-  start                      Prepare and open the managed Shimex.app
+  up                         Install and start the persistent host service (alias: host up)
+  down                       Stop and remove the persistent host service (alias: host down)
+  app start                  Prepare and open the managed Shimex.app
+  app stop                   Quit the managed Shimex.app only
   exec                       Send a prompt to a Shimex model. Reads prompt from args or stdin.
   dev                        Run the server in the foreground and open Shimex.app
   status                     Show Shimex backend status
@@ -122,6 +125,9 @@ commands:
   codex-auth use <name>      Set the default chatgpt-codex auth profile
   mode [host|client]         Show or set host/client mode
   pair <display-code>        Pair this machine to a host (client mode)
+  host up                    Install and start the persistent host service
+  host down                  Stop and remove the persistent host service
+  host restart               Restart the host backend (LaunchAgent kickstart when loaded)
   host code                  Generate a shareable pairing invite (clipboard + AirDrop on macOS)
   host clients               List paired clients
   host revoke <client-id>    Revoke one paired client
@@ -215,9 +221,19 @@ async function runDown(args) {
   }
 }
 
-async function runStart(args) {
+async function runApp(args) {
+  const subcommand = args[0];
+  if (!subcommand || !["start", "stop"].includes(subcommand)) {
+    console.error("usage: shimex app <start|stop>");
+    return 2;
+  }
   const config = await loadShimexConfig();
-  const result = await startCodexClient(config, args);
+  if (subcommand === "stop") {
+    const result = await stopManagedAppProcesses(resolveCodexPaths(config).managedApp);
+    console.log(JSON.stringify({ app: result }, null, 2));
+    return result.ok ? 0 : 1;
+  }
+  const result = await startCodexClient(config, args.slice(1));
   console.log(JSON.stringify(result, null, 2));
   return 0;
 }
@@ -563,8 +579,57 @@ async function runPair(args) {
   }
 }
 
+
+async function runHostRestart(args) {
+  const config = await loadShimexConfig();
+  try {
+    const result = await restartHostService(config);
+    const payload = {
+      ok: Boolean(result.health?.ok ?? result.backend?.running),
+      mode: "host",
+      method: result.method,
+      service: result.service,
+      health: result.health,
+      backend: result.backend,
+      adminUrl: result.plan?.adminUrl || `${serverUrl(config)}/admin`,
+    };
+    if (hasFlag(args, "--json")) {
+      console.log(JSON.stringify({ ...payload, stopped: result.stopped, started: result.started }, null, 2));
+    } else {
+      console.log("");
+      console.log("Shimex host restarted");
+      console.log("=====================");
+      console.log("");
+      console.log(`Method:  ${payload.method}`);
+      console.log(`Admin:   ${payload.adminUrl}`);
+      console.log(`Health:  ${payload.ok ? "ok" : "not ready"}`);
+      if (payload.service?.loaded) {
+        console.log(`Service: ${payload.service.label} (loaded)`);
+      } else if (payload.service?.installed) {
+        console.log(`Service: ${payload.service.label} (installed, not loaded)`);
+      } else {
+        console.log("Service: not installed; restarted backend only");
+      }
+      console.log("");
+    }
+    return payload.ok ? 0 : 1;
+  } catch (error) {
+    console.error(String(error?.message || error));
+    return 1;
+  }
+}
+
 async function runHost(args) {
   const subcommand = args[0] || "code";
+  if (subcommand === "up") {
+    return await runUp(args.slice(1));
+  }
+  if (subcommand === "down") {
+    return await runDown(args.slice(1));
+  }
+  if (subcommand === "restart") {
+    return await runHostRestart(args.slice(1));
+  }
   const config = await loadShimexConfig();
   if (subcommand === "code") {
     await writeModeStore(config, "host");
@@ -694,7 +759,7 @@ async function runHost(args) {
     console.log(JSON.stringify({ ok: true, revokedIds: result.revokedIds }, null, 2));
     return 0;
   }
-  console.error("usage: shimex host <code|clients|revoke|revoke-all>");
+  console.error("usage: shimex host <up|down|restart|code|clients|revoke|revoke-all>");
   return 2;
 }
 

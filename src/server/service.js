@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 import { expandHome, projectRoot } from "../core/paths.js";
-import { publicServerUrl, serverHealth, serverStatus, serverUrl, stopServer } from "./process.js";
+import { ensureServerRunning, publicServerUrl, serverHealth, serverStatus, serverUrl, stopServer } from "./process.js";
 
 export const HOST_SERVICE_LABEL = "xyz.shimex.gateway";
 
@@ -134,6 +134,50 @@ export async function hostServiceStatus(config, options = {}) {
     installed,
     loaded,
     plan,
+    backend: await serverStatus(config),
+  };
+}
+
+
+export async function restartHostService(config, options = {}) {
+  const status = await hostServiceStatus(config, options);
+  const execute = options.run || runCommand;
+  const launchctl = options.launchctl || "/bin/launchctl";
+
+  // Preferred path: kick the LaunchAgent so launchd owns restart lifecycle.
+  if (status.loaded) {
+    await execute(launchctl, ["kickstart", "-k", status.plan.target]);
+    const health = await waitForHealthy(config, options);
+    return {
+      restarted: true,
+      method: "launchctl-kickstart",
+      plan: status.plan,
+      health,
+      service: {
+        installed: status.installed,
+        loaded: true,
+        label: status.plan.label,
+      },
+      backend: await serverStatus(config),
+    };
+  }
+
+  // Fallback when no persistent host service is loaded: restart backend only.
+  const stopped = await stopServer(config);
+  const started = await ensureServerRunning(config);
+  const health = await waitForHealthy(config, options);
+  return {
+    restarted: true,
+    method: "backend-restart",
+    plan: status.plan,
+    stopped,
+    started,
+    health,
+    service: {
+      installed: status.installed,
+      loaded: false,
+      label: status.plan.label,
+    },
     backend: await serverStatus(config),
   };
 }

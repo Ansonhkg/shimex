@@ -248,7 +248,7 @@ Streaming is supported for all combinations. Non-streaming upstream APIs (Anthro
 | **Env interpolation** | ✅ | `${VAR}` in `shimex.yml` resolves from `.env` then shell env |
 | **Detached daemon** | ✅ | `npm start` launches server as detached background process with PID file |
 | **Admin UI** | ✅ | Bare HTML dashboard at `/admin` showing status and models |
-| **CLI** | ✅ | `help`, `doctor`, `providers list`, `models list`, `server start/stop`, `start`, `dev`, `status`, `stop` |
+| **CLI** | ✅ | `help`, `doctor`, `providers list`, `models list`, `server start/stop`, `app start/stop`, `dev`, `status`, `stop` |
 | **Health check** | ✅ | `GET /health` |
 | **Error handling** | ✅ | Typed errors (`shimex_unknown_model`, `shimex_auth_unavailable`, `shimex_unsupported_modality`, etc.) |
 | **Provider config validation** | ✅ | Unknown capabilities stay unknown; no guessing of image/tool/context/reasoning support |
@@ -318,14 +318,14 @@ CLOUDFLARE_AUTH_TOKEN=<your-cloudflare-auth-token>
 ### Start
 
 ```bash
-shimex up
+shimex host up
 # From a repository checkout:
 npm run up
 ```
 
-`shimex up` switches to host mode, installs a per-user macOS LaunchAgent, and
+`shimex host up` switches to host mode, installs a per-user macOS LaunchAgent, and
 starts the gateway. The service starts again at login and restarts after a
-crash. Re-running `shimex up` safely refreshes the service definition.
+crash. Re-running `shimex host up` safely refreshes the service definition.
 
 Open the admin UI at `http://127.0.0.1:5413/admin` (`5413` reads as “SHIE” in
 leetspeak). Use **Create client command** to generate the copyable one-time
@@ -334,10 +334,23 @@ leetspeak). Use **Create client command** to generate the copyable one-time
 To stop the gateway and remove its login service:
 
 ```bash
-shimex down
+shimex host down
 # From a repository checkout:
 npm run down
 ```
+
+To restart the host backend without removing the login service:
+
+```bash
+shimex host restart
+# From a repository checkout:
+npm run shimex -- host restart
+```
+
+`shimex host restart` kickstarts the LaunchAgent when it is loaded. If the
+persistent service is not loaded, it falls back to restarting the backend only.
+
+The shorter `shimex up` and `shimex down` forms remain supported aliases.
 
 Use `npm start` separately when you want to prepare and open the managed
 `Shimex.app`.
@@ -384,7 +397,7 @@ Share one machine's provider credentials with another machine on the same LAN or
 1. On the **host** (keeps all provider logins/keys):
 
 ```bash
-shimex up
+shimex host up
 ```
 
 Then open `http://127.0.0.1:5413/admin`, choose **Create client command**, and
@@ -609,11 +622,14 @@ of dropping image parts silently.
 
 ```bash
 npm run shimex -- help
+npm run shimex -- app start        # Prepare and open the managed Shimex.app
+npm run shimex -- app stop         # Quit Shimex.app without stopping the backend
 npm run shimex -- doctor               # Check Codex prereqs and config
 npm run shimex -- providers list       # List configured providers
 npm run shimex -- models list          # List discovered models
 npm run shimex -- server ensure        # Start/reuse detached backend only
 npm run shimex -- server restart       # Restart detached backend only
+npm run shimex -- host restart         # Restart host service/backend
 npm run shimex -- server start         # Start the gateway server in the foreground
 npm run shimex -- server stop          # Stop the gateway server
 

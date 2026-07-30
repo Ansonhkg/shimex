@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { bootstrapHostService, buildLaunchAgentPlist, HOST_SERVICE_LABEL, planHostService } from "../src/server/service.js";
+import { bootstrapHostService, buildLaunchAgentPlist, HOST_SERVICE_LABEL, planHostService, restartHostService } from "../src/server/service.js";
 
 describe("Persistent Shimex host service", () => {
   test("plans a user LaunchAgent without touching the original Codex app", () => {
@@ -67,6 +67,104 @@ describe("Persistent Shimex host service", () => {
     assert.equal(bootstrapAttempts, 3);
     assert.deepEqual(calls.at(-2), ["enable", plan.target]);
     assert.deepEqual(calls.at(-1), ["kickstart", "-k", plan.target]);
+  });
+
+  test("restartHostService kickstarts a loaded LaunchAgent", async () => {
+    const config = testConfig();
+    const calls = [];
+    const originalFetch = globalThis.fetch;
+    let healthChecks = 0;
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith("/health")) {
+        healthChecks += 1;
+        return {
+          ok: true,
+          async json() {
+            return { ok: true, service: "shimex" };
+          },
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+    try {
+      const result = await restartHostService(config, {
+        home: "/Users/tester",
+        uid: 501,
+        nodePath: "/opt/homebrew/bin/node",
+        projectRoot: "/Users/tester/Projects/shimex",
+        platform: "darwin",
+        run: async (_command, args) => {
+          calls.push(args);
+          if (args[0] === "print") return { code: 0 };
+          if (args[0] === "kickstart") return { code: 0 };
+          throw new Error(`unexpected launchctl ${args.join(" ")}`);
+        },
+      });
+      assert.equal(result.restarted, true);
+      assert.equal(result.method, "launchctl-kickstart");
+      assert.equal(result.health.ok, true);
+      assert.deepEqual(calls[0], ["print", `gui/501/${HOST_SERVICE_LABEL}`]);
+      assert.deepEqual(calls[1], ["kickstart", "-k", `gui/501/${HOST_SERVICE_LABEL}`]);
+      assert.ok(healthChecks >= 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("restartHostService falls back to backend restart when service is not loaded", async () => {
+    const config = testConfig();
+    const calls = [];
+    const originalFetch = globalThis.fetch;
+    let healthChecks = 0;
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith("/health")) {
+        healthChecks += 1;
+        // first status health false-ish path; waitForHealthy should eventually pass
+        return {
+          ok: healthChecks > 1,
+          status: healthChecks > 1 ? 200 : 503,
+          async json() {
+            return healthChecks > 1
+              ? { ok: true, service: "shimex" }
+              : { ok: false, service: "shimex" };
+          },
+        };
+      }
+      if (String(url).endsWith("/api/stop")) {
+        return {
+          ok: true,
+          async json() {
+            return { ok: true };
+          },
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+    try {
+      const result = await restartHostService(config, {
+        home: "/Users/tester",
+        uid: 501,
+        nodePath: "/opt/homebrew/bin/node",
+        projectRoot: "/Users/tester/Projects/shimex",
+        platform: "darwin",
+        healthAttempts: 5,
+        healthDelayMs: 0,
+        run: async (_command, args) => {
+          calls.push(args);
+          if (args[0] === "print") {
+            throw new Error("not loaded");
+          }
+          throw new Error(`unexpected launchctl ${args.join(" ")}`);
+        },
+      });
+      assert.equal(result.restarted, true);
+      assert.equal(result.method, "backend-restart");
+      assert.equal(result.service.loaded, false);
+      assert.equal(calls.length, 1);
+      assert.deepEqual(calls[0], ["print", `gui/501/${HOST_SERVICE_LABEL}`]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

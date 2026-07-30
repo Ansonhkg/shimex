@@ -15,7 +15,11 @@ const MODEL_PICKER_PATCH = {
   // wrapped the visibility check in an availability check. Match structure,
   // rather than minifier-generated identifiers, so both variants keep working.
   already: /function\s+[A-Za-z_$][\w$]*\(\{(?=[^}]*\bauthMethod:)(?=[^}]*\buseHiddenModels:)[^}]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{if\(!0\)\{/,
-  match: /(function\s+[A-Za-z_$][\w$]*\(\{(?=[^}]*\bauthMethod:)(?=[^}]*\buseHiddenModels:)[^}]*\}\)\{let\s+[^;]{0,2000};return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{)if\([^{}]{1,1000}\)\{/,
+  // Codex 26.727 moved the visibility predicate into a helper call such as
+  // `if(K$r({ additionalAvailableModels, ..., useHiddenModels }))`. Keep the
+  // surrounding model-list function as the anchor so this remains scoped to
+  // the picker instead of changing unrelated `forEach` conditions.
+  match: /(function\s+[A-Za-z_$][\w$]*\(\{(?=[^}]*\buseHiddenModels:)[^}]*\}\)\{[\s\S]{0,3000}?return\s+[A-Za-z_$][\w$]*\.forEach\([A-Za-z_$][\w$]*=>\{)if\((?:[^{}]|\{[^{}]*\}){1,1000}\)\{/,
   replace: "$1if(!0){",
 };
 const SIDEBAR_RECENT_THREADS_PATCH = {

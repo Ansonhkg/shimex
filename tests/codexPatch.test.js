@@ -67,6 +67,19 @@ describe("Codex app bundle patching", () => {
     assert.deepEqual(await patchExtractedBundles(root), { changed: true });
     assert.match(await readFile(picker, "utf8"), /forEach\(r=>\{if\(!0\)\{/);
   });
+
+  test("patches the Codex 26.727 picker helper predicate", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-codex-patch-"));
+    const assets = join(root, "webview", "assets");
+    await mkdir(assets, { recursive: true });
+    const picker = join(assets, "picker.js");
+    const sidebar = join(assets, "sidebar.js");
+    await writeFile(picker, "function G$r({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,models:o,useHiddenModels:s}){let c=[],l=null,u=o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),d=a&&o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return o.forEach(r=>{if(K$r({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:s})){c.push(r)}),{models:c,defaultModel:l}}function K$r({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:i}){return e?.has(r.model)===!0||(i&&t!==`amazonBedrock`?n.has(r.model):!r.hidden)}");
+    await writeFile(sidebar, "class X{async listRecentThreads({cursor:e,limit:t,useStateDbOnly:n=!1}){let r={limit:t,cursor:e,sortKey:this.params.requestClient.getCompatibleThreadSortKey(this.recentConversationSortKey),modelProviders:null,archived:!1,sourceKinds:Ae,useStateDbOnly:n};return this.params.requestClient.sendRequest(`thread/list`,r)}}");
+
+    assert.deepEqual(await patchExtractedBundles(root), { changed: true });
+    assert.match(await readFile(picker, "utf8"), /forEach\(r=>\{if\(!0\)\{/);
+  });
 });
 
 async function assertPatchRoundTrip(sidebarText) {

@@ -1,6 +1,6 @@
 # Install Workflow
 
-Trigger: `npm start` or `shimex install`
+Trigger: `npm start` / `shimex app start` or `shimex install`
 
 1. Run `npm install`.
 2. Run `npm start`.

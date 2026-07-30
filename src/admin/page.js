@@ -10,8 +10,7 @@ export function adminPage() {
     "<title>Shimex Control Plane</title>",
     "<style>", styles(), "</style>",
     "</head><body>",
-    header(),
-    main(),
+    shell(),
     toaster(),
     "<script>", runtime(), "</script>",
     "</body></html>",
@@ -22,31 +21,40 @@ function styles() {
   return `
     :root {
       color-scheme: dark light;
-      --bg: #0b0d12;
-      --panel: #11151c;
-      --panel-2: #161b25;
-      --border: #1f2533;
-      --border-strong: #2a3142;
-      --text: #e6e9ef;
-      --muted: #8a93a6;
-      --accent: #6aa6ff;
-      --accent-2: #4f8be8;
-      --ok: #2fbf71;
-      --warn: #e2b341;
+      --bg: #050505;
+      --bg-elevated: #0a0a0a;
+      --panel: #0f0f0f;
+      --panel-2: #141414;
+      --panel-hover: #171717;
+      --border: #1a1a1a;
+      --border-strong: #262626;
+      --text: #ededed;
+      --muted: #888888;
+      --accent: #0070f3;
+      --accent-2: #0761d1;
+      --accent-soft: rgba(0, 112, 243, 0.12);
+      --ok: #0cce6b;
+      --warn: #f5a623;
       --danger: #e5484d;
-      --shadow: 0 4px 24px rgba(0,0,0,0.35);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 8px 30px rgba(0,0,0,0.45);
+      --sidebar-w: 64px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     @media (prefers-color-scheme: light) {
       :root {
-        --bg: #f5f6f9;
+        --bg: #fafafa;
+        --bg-elevated: #ffffff;
         --panel: #ffffff;
-        --panel-2: #fafbfd;
-        --border: #e3e6ee;
-        --border-strong: #c8cdd9;
-        --text: #14171f;
-        --muted: #5a6273;
-        --shadow: 0 4px 18px rgba(20,23,31,0.08);
+        --panel-2: #f7f7f7;
+        --panel-hover: #f2f2f2;
+        --border: #ebebeb;
+        --border-strong: #e0e0e0;
+        --text: #171717;
+        --muted: #666666;
+        --accent-soft: rgba(0, 112, 243, 0.08);
+        --shadow: 0 0 0 1px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
       }
     }
     * { box-sizing: border-box; }
@@ -58,100 +66,194 @@ function styles() {
     code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; }
 
+    .shell {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 0;
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      z-index: 20;
+    }
+    .sidebar-brand {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #0070f3, #79ffe1);
+      color: #04111f; font-weight: 800; font-size: 14px;
+      display: grid; place-items: center;
+      margin-bottom: 10px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 8px 20px rgba(0,112,243,0.25);
+      flex-shrink: 0;
+    }
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      width: 100%;
+      padding: 0 10px;
+    }
+    .nav-item {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: grid; place-items: center;
+      color: var(--muted);
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none !important;
+      position: relative;
+    }
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--panel-2);
+      border-color: var(--border);
+    }
+    .nav-item.active {
+      color: var(--text);
+      background: var(--panel);
+      border-color: var(--border-strong);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    .nav-item.active::before {
+      content: "";
+      position: absolute;
+      left: -10px;
+      width: 3px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+    .nav-item svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px 4px;
+      width: 100%;
+    }
+    .sidebar-link {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: grid; place-items: center;
+      color: var(--muted);
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      text-decoration: none !important;
+    }
+    .sidebar-link:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+    .sidebar-link svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 500px at 20% -10%, rgba(0,112,243,0.08), transparent 55%),
+        radial-gradient(900px 400px at 90% 0%, rgba(121,255,225,0.04), transparent 50%),
+        var(--bg);
+    }
+
     .topbar {
       display: flex; align-items: center; justify-content: space-between;
-      gap: 16px; padding: 14px 28px;
-      background: var(--panel); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px);
+      gap: 16px; padding: 18px 28px 8px;
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in srgb, var(--bg) 82%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid transparent;
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand .mark {
-      width: 28px; height: 28px; border-radius: 7px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px;
-      box-shadow: var(--shadow);
+    .topbar.scrolled { border-bottom-color: var(--border); }
+    .brand-block { min-width: 0; }
+    .brand-block .eyebrow {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
     }
-    .brand .name { font-weight: 600; letter-spacing: 0.2px; }
-    .brand .sub { color: var(--muted); font-size: 13px; }
-    .topbar nav { display: flex; gap: 6px; align-items: center; }
-    .topbar nav a {
-      color: var(--muted); padding: 6px 10px; border-radius: 6px;
+    .brand-block h1 {
+      margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
     }
-    .topbar nav a:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
-    .topbar nav a.pairing-shortcut {
-      color: var(--text); background: rgba(87, 146, 255, 0.12);
-      border: 1px solid rgba(87, 146, 255, 0.3);
+    .brand-block p {
+      margin: 4px 0 0; color: var(--muted); font-size: 13px;
     }
-    #pairing-card { scroll-margin-top: 84px; }
+    .topbar-actions {
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
     .status { display: flex; align-items: center; gap: 8px; }
     .pill {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
-      background: var(--panel-2); border: 1px solid var(--border-strong); color: var(--muted);
+      padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 500;
+      background: var(--panel); border: 1px solid var(--border-strong); color: var(--muted);
     }
-    .pill.ok { color: var(--ok); border-color: rgba(47,191,113,0.35); }
-    .pill.warn { color: var(--warn); border-color: rgba(226,179,65,0.35); }
-    .pill.danger { color: var(--danger); border-color: rgba(229,72,77,0.35); }
+    .pill.ok { color: var(--ok); border-color: rgba(12,206,107,0.35); background: rgba(12,206,107,0.08); }
+    .pill.warn { color: var(--warn); border-color: rgba(245,166,35,0.35); background: rgba(245,166,35,0.08); }
+    .pill.danger { color: var(--danger); border-color: rgba(229,72,77,0.35); background: rgba(229,72,77,0.08); }
     .dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; box-shadow: 0 0 8px currentColor; }
 
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px; }
-    .hero { margin-bottom: 28px; }
-    .hero h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
-    .hero p { margin: 0; color: var(--muted); font-size: 14px; }
+    .content {
+      flex: 1;
+      padding: 12px 28px 36px;
+      max-width: 1280px;
+      width: 100%;
+    }
+    .panel { display: none; animation: fade-in 0.18s ease; }
+    .panel.active { display: block; }
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
     .grid {
-      display: grid; gap: 18px;
+      display: grid; gap: 16px;
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
-    .card {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 18px; box-shadow: var(--shadow);
+    .card, .auth-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       min-width: 0;
     }
+    .card { padding: 18px; }
     .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
     .span-8 { grid-column: span 8; }
     .span-12 { grid-column: span 12; }
-    .card .head {
+    .card .head, .auth-panel .head {
       display: flex; align-items: baseline; justify-content: space-between;
       gap: 10px; margin-bottom: 12px;
     }
-    .card h2 { font-size: 14px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+    .card h2 {
+      font-size: 13px; font-weight: 600; margin: 0;
+      letter-spacing: 0.02em; color: var(--text);
+    }
     .card .meta { font-size: 12px; color: var(--muted); }
 
     .doctor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .doctor-grid .item {
       background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 12px;
+      border-radius: var(--radius-sm); padding: 12px;
     }
     .doctor-grid .item .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
     .doctor-grid .item .val { font-size: 13px; margin-top: 4px; word-break: break-all; }
     .doctor-grid .item .val small { color: var(--muted); display: block; margin-top: 2px; }
 
-    .actions { display: flex; flex-direction: column; gap: 10px; }
-    .action {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      padding: 14px 16px; background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 8px; flex-wrap: wrap;
-    }
-    .action .copy { flex: 1 1 220px; min-width: 0; }
-    .action .copy .t { font-size: 13px; font-weight: 500; }
-    .action .copy .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
     .button-row { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
-    .advanced-actions {
-      margin-top: 4px; color: var(--muted); font-size: 12px;
-    }
-    .advanced-actions summary {
-      cursor: pointer; user-select: none; width: fit-content;
-      padding: 4px 0; color: var(--muted);
-    }
-    .advanced-actions summary:hover { color: var(--text); }
-    .advanced-actions .button-row { margin-top: 8px; }
     button {
       font-family: inherit; font-size: 13px; font-weight: 500;
-      padding: 7px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-strong);
+      padding: 7px 14px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border-strong);
       background: var(--panel-2); color: var(--text); transition: all 0.15s ease;
     }
-    button:hover { background: var(--panel); border-color: var(--accent); }
+    button:hover { background: var(--panel-hover); border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong)); }
     button:active { transform: translateY(1px); }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -163,8 +265,8 @@ function styles() {
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
     .toolbar input, .toolbar select {
       font-family: inherit; font-size: 13px; color: var(--text);
-      background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 6px;
-      padding: 7px 10px; min-width: 0;
+      background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 8px;
+      padding: 8px 11px; min-width: 0;
     }
     .toolbar input { flex: 1; min-width: 180px; }
     .toolbar input:focus, .toolbar select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
@@ -189,7 +291,7 @@ function styles() {
     .badge.image { color: #b48cff; border-color: rgba(180,140,255,0.35); }
     .badge.text { color: var(--muted); }
     .badge.provider { color: var(--provider-color, var(--accent)); border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 45%, transparent); background: color-mix(in srgb, var(--provider-color, var(--accent)) 12%, transparent); }
-    .badge.ok { color: var(--ok); border-color: rgba(47,191,113,0.35); }
+    .badge.ok { color: var(--ok); border-color: rgba(12,206,107,0.35); }
     .badge.danger { color: var(--danger); border-color: rgba(229,72,77,0.5); }
 
     .auth-panel {
@@ -432,14 +534,21 @@ function styles() {
     .pairing-client-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .pairing-help { margin-top: 12px; color: var(--muted); font-size: 12px; }
     @media (max-width: 900px) { .pairing-grid { grid-template-columns: 1fr; } }
-    .endpoints a { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; background: var(--panel-2); border-radius: 6px; border: 1px solid var(--border); }
-    .endpoints a code { background: transparent; padding: 0; }
+    .endpoints a {
+      display: flex; justify-content: space-between; gap: 8px; padding: 10px 12px;
+      background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border);
+      color: var(--text); text-decoration: none;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .endpoints a:hover { border-color: var(--border-strong); background: var(--panel-hover); text-decoration: none; }
+    .endpoints a code { background: transparent; padding: 0; color: var(--accent); }
+    .endpoints a span { color: var(--muted); }
 
     #toasts { position: fixed; right: 24px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 50; pointer-events: none; }
     .toast {
       pointer-events: auto; min-width: 280px; max-width: 380px;
       background: var(--panel); border: 1px solid var(--border-strong); border-left: 3px solid var(--accent);
-      border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow);
+      border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow);
       animation: slide-in 0.2s ease;
     }
     .toast.ok { border-left-color: var(--ok); }
@@ -450,109 +559,150 @@ function styles() {
     @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
     @media (max-width: 900px) {
-      .span-4, .span-8 { grid-column: span 6; }
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
     }
-    @media (max-width: 640px) {
-      .span-4, .span-8, .span-12 { grid-column: span 12; }
+    @media (max-width: 720px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar {
+        position: sticky; top: 0; height: auto; width: 100%;
+        flex-direction: row; justify-content: space-between;
+        padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--border);
+      }
+      .sidebar-brand { margin: 0; width: 30px; height: 30px; border-radius: 8px; }
+      .sidebar-nav { flex-direction: row; width: auto; padding: 0; gap: 4px; flex: 0; }
+      .sidebar-footer { width: auto; flex-direction: row; padding: 0; }
+      .nav-item, .sidebar-link { width: 38px; height: 38px; border-radius: 10px; }
+      .nav-item.active::before { display: none; }
+      .topbar, .content { padding-left: 16px; padding-right: 16px; }
       .doctor-grid { grid-template-columns: 1fr; }
       .endpoints { grid-template-columns: 1fr; }
-      .wrap { padding: 16px; }
-      .topbar { padding: 12px 16px; }
     }
   `;
 }
 
-function header() {
-  return `
-    <header class="topbar">
-      <div class="brand">
-        <div class="mark">S</div>
-        <div>
-          <div class="name">Shimex</div>
-          <div class="sub">Local provider gateway for managed Codex Desktop</div>
-        </div>
-      </div>
-      <nav>
-        <a href="/admin">Overview</a>
-        <a class="pairing-shortcut" href="#pairing-card">Pair client</a>
-        <a href="/v1/models" target="_blank" rel="noreferrer">/v1/models</a>
-        <a href="/health" target="_blank" rel="noreferrer">/health</a>
-      </nav>
-      <div class="status">
-        <span id="health-pill" class="pill"><span class="dot"></span><span id="health-label">connecting…</span></span>
-      </div>
-    </header>
-  `;
+function icon(name) {
+  const icons = {
+    overview: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>',
+    models: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><circle cx="18.5" cy="17" r="2"></circle></svg>',
+    pairing: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 14.5 7 16a4 4 0 1 0 5.7 5.7l1.8-1.8"></path><path d="m15.5 9.5 1.5-1.5A4 4 0 1 0 11.3 2.3L9.5 4.1"></path><path d="m9 15 6-6"></path></svg>',
+    codex: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 7v10L12 21l7.5-4V7L12 3z"></path><path d="M12 12 4.8 7.8"></path><path d="M12 12v9"></path><path d="m12 12 7.2-4.2"></path></svg>',
+    cline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 1 6 6c0 2.2-1.2 3.8-2.5 5-.9.8-1.5 1.6-1.5 2.5v1h-4v-1c0-.9-.6-1.7-1.5-2.5C7.2 12.8 6 11.2 6 9a6 6 0 0 1 6-6z"></path><path d="M10 20h4"></path></svg>',
+    modelsApi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7"></path><path d="M10 14 21 3"></path><path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"></path></svg>',
+  };
+  return icons[name] || "";
 }
 
-function main() {
+function shell() {
   return `
-    <div class="wrap">
-      <section class="hero">
-        <h1>Control plane</h1>
-        <p>Inspect the managed Codex app, preview or apply setup changes, and review what Shimex exposes to Codex.</p>
-      </section>
-      <section class="grid">
-        <div class="card span-4">
-          <div class="head">
-            <h2>Doctor</h2>
-            <span id="doctor-meta" class="meta">checking…</span>
-          </div>
-          <div id="doctor" class="doctor-grid">
-            <div class="skeleton" style="grid-column: span 2;"></div>
-          </div>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Primary">
+        <div class="sidebar-brand" title="Shimex">S</div>
+        <nav class="sidebar-nav">
+          <a class="nav-item active" href="#overview" data-view="overview" title="Overview" aria-label="Overview">${icon("overview")}</a>
+          <a class="nav-item" href="#models" data-view="models" title="Models" aria-label="Models">${icon("models")}</a>
+          <a class="nav-item" href="#pairing" data-view="pairing" title="Pairing" aria-label="Pairing">${icon("pairing")}</a>
+          <a class="nav-item" href="#codex" data-view="codex" title="Codex profiles" aria-label="Codex profiles">${icon("codex")}</a>
+          <a class="nav-item" href="#cline" data-view="cline" title="Cline profiles" aria-label="Cline profiles">${icon("cline")}</a>
+        </nav>
+        <div class="sidebar-footer">
+          <a class="sidebar-link" href="/v1/models" target="_blank" rel="noreferrer" title="/v1/models" aria-label="Open /v1/models">${icon("modelsApi")}</a>
         </div>
-        <div class="card span-8">
-          <div class="head">
-            <h2>Managed Codex app</h2>
-            <span class="meta">managed copy stays isolated</span>
+      </aside>
+      <div class="main">
+        <header class="topbar" id="topbar">
+          <div class="brand-block">
+            <div class="eyebrow">Shimex</div>
+            <h1 id="view-title">Overview</h1>
+            <p id="view-subtitle">Doctor status, endpoints, and gateway health.</p>
           </div>
-          <div class="actions" id="actions"></div>
-          <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
-            <h2 style="margin-bottom:8px;">Endpoints</h2>
-            <div class="endpoints">
-              <a href="/health" target="_blank" rel="noreferrer"><code>GET /health</code><span>liveness</span></a>
-              <a href="/v1/models" target="_blank" rel="noreferrer"><code>GET /v1/models</code><span>OpenAI list</span></a>
-              <a href="/api/models" target="_blank" rel="noreferrer"><code>GET /api/models</code><span>Shimex catalog</span></a>
-              <a href="/codex/model-catalog.json" target="_blank" rel="noreferrer"><code>GET /codex/model-catalog.json</code><span>Codex picker</span></a>
+          <div class="topbar-actions">
+            <div class="status">
+              <span id="health-pill" class="pill"><span class="dot"></span><span id="health-label">connecting…</span></span>
             </div>
           </div>
+        </header>
+        <div class="content">
+          <section class="panel active" id="panel-overview" data-panel="overview">
+            <div class="grid">
+              <div class="card span-6">
+                <div class="head">
+                  <h2>Doctor</h2>
+                  <span id="doctor-meta" class="meta">checking…</span>
+                </div>
+                <div id="doctor" class="doctor-grid">
+                  <div class="skeleton" style="grid-column: span 2;"></div>
+                </div>
+              </div>
+              <div class="card span-6">
+                <div class="head">
+                  <h2>Endpoints</h2>
+                  <span class="meta">local OpenAI-compatible surface</span>
+                </div>
+                <div class="endpoints">
+                  <a href="/health" target="_blank" rel="noreferrer"><code>GET /health</code><span>liveness</span></a>
+                  <a href="/v1/models" target="_blank" rel="noreferrer"><code>GET /v1/models</code><span>OpenAI list</span></a>
+                  <a href="/api/models" target="_blank" rel="noreferrer"><code>GET /api/models</code><span>Shimex catalog</span></a>
+                  <a href="/codex/model-catalog.json" target="_blank" rel="noreferrer"><code>GET /codex/model-catalog.json</code><span>Codex picker</span></a>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" id="panel-models" data-panel="models">
+            <div class="grid">
+              <div class="card span-12">
+                <div class="head">
+                  <h2>Discovered models</h2>
+                  <span class="meta"><span id="model-count">0</span> visible</span>
+                </div>
+                <div class="toolbar">
+                  <input id="search" type="search" placeholder="Filter by slug, name, upstream, or provider…" autocomplete="off" />
+                  <select id="provider-filter" aria-label="Filter by provider"><option value="">All providers</option></select>
+                  <select id="modality-filter" aria-label="Filter by input modality">
+                    <option value="">All modalities</option>
+                    <option value="text">Text only</option>
+                    <option value="image">Vision-capable</option>
+                  </select>
+                  <button class="ghost" id="refresh" type="button">Refresh</button>
+                </div>
+                <div style="overflow-x:auto;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Slug</th>
+                        <th>Provider</th>
+                        <th>Upstream model</th>
+                        <th>Input</th>
+                        <th>Context</th>
+                        <th>Reasoning</th>
+                      </tr>
+                    </thead>
+                    <tbody id="models"><tr><td colspan="6"><div class="skeleton" style="width:60%"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" id="panel-pairing" data-panel="pairing">
+            <div class="grid">
+              ${pairingCard()}
+            </div>
+          </section>
+
+          <section class="panel" id="panel-codex" data-panel="codex">
+            <div class="grid">
+              ${codexAuthsCard()}
+            </div>
+          </section>
+
+          <section class="panel" id="panel-cline" data-panel="cline">
+            <div class="grid">
+              ${clineAuthsCard()}
+            </div>
+          </section>
         </div>
-        <div class="card span-12">
-          <div class="head">
-            <h2>Discovered models</h2>
-            <span class="meta"><span id="model-count">0</span> visible</span>
-          </div>
-          <div class="toolbar">
-            <input id="search" type="search" placeholder="Filter by slug, name, upstream, or provider…" autocomplete="off" />
-            <select id="provider-filter" aria-label="Filter by provider"><option value="">All providers</option></select>
-            <select id="modality-filter" aria-label="Filter by input modality">
-              <option value="">All modalities</option>
-              <option value="text">Text only</option>
-              <option value="image">Vision-capable</option>
-            </select>
-            <button class="ghost" id="refresh" type="button">Refresh</button>
-          </div>
-          <div style="overflow-x:auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Slug</th>
-                  <th>Provider</th>
-                  <th>Upstream model</th>
-                  <th>Input</th>
-                  <th>Context</th>
-                  <th>Reasoning</th>
-                </tr>
-              </thead>
-              <tbody id="models"><tr><td colspan="6"><div class="skeleton" style="width:60%"></div></td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        ${pairingCard()}
-        ${codexAuthsCard()}
-        ${clineAuthsCard()}
-      </section>
+      </div>
     </div>
   `;
 }
@@ -563,12 +713,19 @@ function toaster() {
 
 function runtime() {
   return `
+    const VIEW_META = {
+      overview: { title: "Overview", subtitle: "Doctor status, endpoints, and gateway health." },
+      models: { title: "Models", subtitle: "What Shimex currently exposes to Codex Desktop." },
+      pairing: { title: "Pairing", subtitle: "Host mode, client commands, and paired machines." },
+      codex: { title: "Codex profiles", subtitle: "Connected OpenAI Codex accounts and usage." },
+      cline: { title: "Cline profiles", subtitle: "Connected Cline accounts and usage." },
+    };
+
     const els = {
       healthPill: document.getElementById("health-pill"),
       healthLabel: document.getElementById("health-label"),
       doctorMeta: document.getElementById("doctor-meta"),
       doctor: document.getElementById("doctor"),
-      actions: document.getElementById("actions"),
       models: document.getElementById("models"),
       modelCount: document.getElementById("model-count"),
       search: document.getElementById("search"),
@@ -576,8 +733,11 @@ function runtime() {
       modalityFilter: document.getElementById("modality-filter"),
       refresh: document.getElementById("refresh"),
       toasts: document.getElementById("toasts"),
+      topbar: document.getElementById("topbar"),
+      viewTitle: document.getElementById("view-title"),
+      viewSubtitle: document.getElementById("view-subtitle"),
     };
-    const state = { models: [], doctor: null, health: null, busy: false };
+    const state = { models: [], doctor: null, health: null, view: "overview" };
 
     function toast(title, detail, kind) {
       const node = document.createElement("div");
@@ -613,6 +773,34 @@ function runtime() {
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
+    function normalizeView(raw) {
+      const value = String(raw || "").replace(/^#/, "").trim().toLowerCase();
+      if (!value || value === "overview" || value === "admin") return "overview";
+      if (value === "pairing-card" || value === "pair" || value === "pair-client") return "pairing";
+      if (value === "codex-auths" || value === "codex-auths-panel") return "codex";
+      if (value === "cline-auths" || value === "cline-auths-panel") return "cline";
+      if (VIEW_META[value]) return value;
+      return "overview";
+    }
+
+    function setView(nextView, { updateHash = true } = {}) {
+      const view = normalizeView(nextView);
+      state.view = view;
+      document.querySelectorAll(".nav-item").forEach((item) => {
+        item.classList.toggle("active", item.getAttribute("data-view") === view);
+      });
+      document.querySelectorAll(".panel").forEach((panel) => {
+        panel.classList.toggle("active", panel.getAttribute("data-panel") === view);
+      });
+      const meta = VIEW_META[view] || VIEW_META.overview;
+      els.viewTitle.textContent = meta.title;
+      els.viewSubtitle.textContent = meta.subtitle;
+      if (updateHash) {
+        const hash = "#" + view;
+        if (location.hash !== hash) history.replaceState(null, "", hash);
+      }
+    }
+
     function renderDoctor(doctor) {
       state.doctor = doctor || {};
       els.doctorMeta.textContent = doctor && doctor.ok ? "ready" : "source Codex app missing";
@@ -631,78 +819,6 @@ function runtime() {
           '</div>' +
         '</div>'
       )).join("");
-    }
-
-    function renderActions() {
-      const managedExists = !!(state.doctor && state.doctor.managedShimexApp && state.doctor.managedShimexApp.exists);
-      const primaryItems = [
-        { id: "open", endpoint: "/api/open", apply: null, label: managedExists ? "Update and open" : "Set up and open", primary: true },
-      ];
-      const advancedItems = [
-        { id: "preview-sync", endpoint: "/api/sync", apply: false, label: "Preview update" },
-        { id: "preview-install", endpoint: "/api/install", apply: false, label: "Preview setup" },
-        { id: "apply-install", endpoint: "/api/install", apply: true, label: managedExists ? "Replace app" : "Set up app" },
-      ];
-      const items = primaryItems.concat(advancedItems);
-      els.actions.innerHTML = primaryItems.map((item) => (
-        '<div class="action">' +
-          '<div class="copy"><div class="t">' + escapeHtml(item.label) + '</div>' +
-          '<div class="d">' + escapeHtml(actionDescription(item)) + '</div></div>' +
-          '<div class="button-row"><button data-id="' + escapeHtml(item.id) + '"' +
-          (item.primary ? ' class="primary"' : '') + '>' + escapeHtml(item.label) + '</button></div>' +
-        '</div>'
-      )).join("") +
-      '<details class="advanced-actions">' +
-        '<summary>Advanced setup actions</summary>' +
-        '<div class="button-row">' +
-          advancedItems.map((item) => (
-            '<button data-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.label) + '</button>'
-          )).join("") +
-        '</div>' +
-      '</details>';
-      for (const button of els.actions.querySelectorAll("button[data-id]")) {
-        button.addEventListener("click", () => runAction(items.find((it) => it.id === button.getAttribute("data-id"))));
-      }
-    }
-
-    function actionDescription(item) {
-      if (item.id === "preview-install") return "Show what Shimex would create. No files are changed.";
-      if (item.id === "apply-install") return "Create or replace the managed Shimex app and Codex profile.";
-      if (item.id === "preview-sync") return "Show what would be refreshed from Codex and the provider model list.";
-      if (item.id === "apply-sync") return "Refresh the managed Shimex app, profile, and model catalog.";
-      if (item.id === "open") return "Refresh the managed app, profile, and model catalog if needed, then launch Shimex.";
-      return "";
-    }
-
-    async function runAction(item) {
-      if (state.busy) { toast("Busy", "Another action is running.", "warn"); return; }
-      state.busy = true;
-      const url = item.apply == null ? item.endpoint : (item.endpoint + (item.apply ? "?apply=1" : ""));
-      const label = item.label;
-      for (const button of els.actions.querySelectorAll("button")) { button.disabled = true; }
-      try {
-        const result = await fetch(url, { method: "POST", headers: { "accept": "application/json" } }).then(parseJson);
-        if (result && result.error) {
-          toast(label + " failed", String(result.error), "err");
-        } else {
-          toast(label, summarize(result), "ok");
-        }
-        await load();
-      } catch (error) {
-        toast(label + " failed", String(error && error.message || error), "err");
-      } finally {
-        state.busy = false;
-        for (const button of els.actions.querySelectorAll("button")) { button.disabled = false; }
-      }
-    }
-
-    function summarize(result) {
-      if (!result || typeof result !== "object") return "done";
-      if (result.applied) return "Applied.";
-      if (result.started) return "Shimex opened.";
-      if (result.stopping) return "Server stopping.";
-      if (result.plan) return "Plan ready. Use Apply to commit.";
-      return "done";
     }
 
     const PROVIDER_COLORS = {
@@ -787,7 +903,6 @@ function runtime() {
         setHealth(Boolean(isOk), isOk ? "online" : "needs setup");
         renderDoctor(status && status.doctor);
         state.models = (status && status.models) || [];
-        renderActions();
         renderModels();
       } catch (error) {
         setHealth(false, "offline");
@@ -800,11 +915,23 @@ function runtime() {
     els.search.addEventListener("input", renderModels);
     els.providerFilter.addEventListener("change", renderModels);
     els.modalityFilter.addEventListener("change", renderModels);
+    document.querySelectorAll(".nav-item").forEach((item) => {
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        setView(item.getAttribute("data-view"));
+      });
+    });
+    window.addEventListener("hashchange", () => setView(location.hash, { updateHash: false }));
+    window.addEventListener("scroll", () => {
+      if (!els.topbar) return;
+      els.topbar.classList.toggle("scrolled", window.scrollY > 4);
+    }, { passive: true });
 
     ${codexAuthsRuntimeHelpers()}
     ${clineAuthsRuntimeHelpers()}
     ${pairingRuntimeHelpers()}
     els.refresh.addEventListener("click", () => load().then(() => toast("Refreshed", "Doctor and model list updated.", "ok")));
+    setView(location.hash || "overview", { updateHash: !location.hash });
     initCodexAuths();
     initClineAuths();
     initPairing();
