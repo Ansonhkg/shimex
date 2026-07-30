@@ -1,8 +1,10 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 import {
   authenticateClientToken,
   createPairingCode,
@@ -21,6 +23,8 @@ import { authorizeRequest } from "../src/core/access.js";
 import { createPairingRoutes } from "../src/server/pairingRoutes.js";
 import { remoteGatewayConfig } from "../src/core/clientMode.js";
 import { writeCodexProfile } from "../src/clients/codex/lifecycle.js";
+
+const execFileAsync = promisify(execFile);
 
 describe("Host/client pairing", () => {
   test("creates and redeems a one-time pairing code into a client token", async () => {
@@ -283,6 +287,80 @@ describe("Pairing share card", () => {
     assert.doesNotMatch(script, /experimental_bearer_token/);
     assert.match(script, /Opening managed Shimex app/);
     assert.equal(script.includes("API key:  ${CLIENT_TOKEN}"), false);
+  });
+
+  test("join setup replaces a rejected saved token by redeeming the supplied code", async () => {
+    const { buildJoinSetupScript } = await import("../src/server/joinSetup.js");
+    const root = await mkdtemp(join(tmpdir(), "shimex-join-repair-"));
+    const runtimeHome = join(root, "runtime");
+    const profileHome = join(root, "profile");
+    const userDataDir = join(root, "user-data");
+    const managedApp = join(root, "Shimex.app");
+    const fakeBin = join(root, "bin");
+    await mkdir(join(managedApp, "Contents"), { recursive: true });
+    await mkdir(runtimeHome, { recursive: true });
+    await mkdir(fakeBin, { recursive: true });
+    await writeFile(join(runtimeHome, "client-session.json"), JSON.stringify({
+      gatewayUrl: "http://shimex-host.example.test:5413",
+      clientToken: "revoked-client-token",
+      clientId: "client_old",
+    }));
+
+    const fakeCurl = `#!/usr/bin/env bash
+set -euo pipefail
+ARGS="$*"
+if [[ "$ARGS" == *"/v1/models"* && "$ARGS" == *"%{http_code}"* ]]; then
+  printf '401'
+  exit 0
+fi
+if [[ "$ARGS" == *"/api/pair"* ]]; then
+  printf '%s' '{"clientToken":"fresh-client-token","clientId":"client_new","gatewayUrl":"http://shimex-host.example.test:5413"}'
+  exit 0
+fi
+if [[ "$ARGS" == *"/codex/model-catalog.json"* ]]; then
+  OUT=""
+  while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == "-o" ]]; then
+      shift
+      OUT="$1"
+    fi
+    shift || true
+  done
+  printf '%s' '{"models":[{"slug":"host-model"}]}' > "$OUT"
+  exit 0
+fi
+echo "unexpected curl call" >&2
+exit 2
+`;
+    await writeFile(join(fakeBin, "curl"), fakeCurl);
+    await writeFile(join(fakeBin, "uname"), "#!/usr/bin/env bash\nprintf 'Linux\\n'\n");
+    await chmod(join(fakeBin, "curl"), 0o755);
+    await chmod(join(fakeBin, "uname"), 0o755);
+
+    const scriptPath = join(root, "setup.sh");
+    await writeFile(scriptPath, buildJoinSetupScript({
+      gateway: "http://shimex-host.example.test:5413",
+      code: "ABCD-EFGH",
+    }));
+    const { stdout } = await execFileAsync("bash", [scriptPath], {
+      env: {
+        ...process.env,
+        HOME: join(root, "home"),
+        PATH: `${fakeBin}:${process.env.PATH}`,
+        SHIMEX_RUNTIME_HOME: runtimeHome,
+        SHIMEX_PROFILE_HOME: profileHome,
+        SHIMEX_USER_DATA_DIR: userDataDir,
+        SHIMEX_MANAGED_APP: managedApp,
+        SHIMEX_SOURCE_CODEX: join(root, "missing-Codex.app"),
+      },
+    });
+
+    assert.match(stdout, /Saved client token is no longer accepted — pairing again/);
+    const session = JSON.parse(await readFile(join(runtimeHome, "client-session.json"), "utf8"));
+    assert.equal(session.clientToken, "fresh-client-token");
+    assert.equal(session.clientId, "client_new");
+    const auth = JSON.parse(await readFile(join(profileHome, "auth.json"), "utf8"));
+    assert.equal(auth.OPENAI_API_KEY, "fresh-client-token");
   });
 });
 

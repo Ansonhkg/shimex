@@ -44,12 +44,35 @@ if [[ -z "\${CLIENT_TOKEN}" && -f "\${EXISTING_SESSION_PATH}" ]]; then
   fi
 fi
 
+if [[ -n "\${CLIENT_TOKEN}" ]]; then
+  AUTH_STATUS=\$(curl -sS -o /dev/null -w '%{http_code}' \\
+    -H "authorization: Bearer \$CLIENT_TOKEN" "\$GATEWAY/v1/models" || true)
+  if [[ "\${AUTH_STATUS}" == "401" || "\${AUTH_STATUS}" == "403" ]]; then
+    if [[ -n "\${PAIR_CODE}" ]]; then
+      echo "1/5 Saved client token is no longer accepted — pairing again..."
+      CLIENT_TOKEN=""
+      CLIENT_ID=""
+    else
+      echo "Saved client token is no longer accepted. Ask the host for a fresh invite." >&2
+      exit 1
+    fi
+  elif [[ ! "\${AUTH_STATUS}" =~ ^2[0-9][0-9]\$ ]]; then
+    echo "Could not validate the host connection (HTTP \${AUTH_STATUS:-000})." >&2
+    exit 1
+  fi
+fi
+
 if [[ -z "\${CLIENT_TOKEN}" && -n "\${PAIR_CODE}" ]]; then
-  echo "1/5 Pairing with host..."
+  if [[ -z "\${AUTH_STATUS:-}" ]]; then
+    echo "1/5 Pairing with host..."
+  fi
   HOSTPORT="\${GATEWAY#*://}"
-  RESPONSE=\$(curl -fsSL -X POST "\$GATEWAY/api/pair" \\
+  if ! RESPONSE=\$(curl -fsSL -X POST "\$GATEWAY/api/pair" \\
     -H "content-type: application/json" \\
-    -d "{\\"displayCode\\":\\"\${PAIR_CODE}@\${HOSTPORT}\\",\\"clientLabel\\":\\"\$(hostname 2>/dev/null || echo client)\\"}")
+    -d "{\\"displayCode\\":\\"\${PAIR_CODE}@\${HOSTPORT}\\",\\"clientLabel\\":\\"\$(hostname 2>/dev/null || echo client)\\"}"); then
+    echo "Pairing failed. Ask the host for a fresh client command." >&2
+    exit 1
+  fi
   CLIENT_TOKEN=\$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("clientToken",""))' <<<"\$RESPONSE")
   CLIENT_ID=\$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("clientId",""))' <<<"\$RESPONSE")
   NEXT_GATEWAY=\$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("gatewayUrl","") or "")' <<<"\$RESPONSE")
