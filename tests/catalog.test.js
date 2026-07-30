@@ -152,9 +152,39 @@ describe("Shimex scaffold", () => {
   });
 
   test("loads shimex.yml provider lists", async () => {
-    const config = await loadShimexConfig();
+    const dir = await mkdtemp(join(tmpdir(), "shimex-config-"));
+    const configPath = join(dir, "shimex.yml");
+    await writeFile(configPath, `
+project:
+  name: shimex
+runtime:
+  port: 5413
+  public_url: http://shimex-host.tailnet.example:5413
+codex:
+  seed_local_auth: true
+  bundle_identifier: xyz.shimex.app
+  icon_path: icon.png
+providers:
+  - id: cline-pass
+    enabled: true
+  - id: lm-studio
+    enabled: true
+  - id: deepseek
+    enabled: true
+    models:
+      - slug: deepseek-v4-pro
+  - id: grok
+    enabled: true
+  - id: cloudflare-workers-ai
+    enabled: true
+    models:
+      - slug: cloudflare-glm-5-2
+  - id: chatgpt-codex
+    enabled: true
+`);
+    const config = await loadShimexConfig(configPath);
     assert.equal(config.runtime.port, 5413);
-    assert.equal(config.runtime.publicUrl, "https://shimex.localhost");
+    assert.equal(config.runtime.publicUrl, "http://shimex-host.tailnet.example:5413");
     assert.equal(config.codex.seedLocalAuth, true);
     assert.equal(config.codex.localAuthKey, "shimex-local-api-key");
     assert.equal(config.codex.bundleIdentifier, "xyz.shimex.app");

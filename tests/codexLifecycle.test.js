@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { installCodexClient, planCodexInstall } from "../src/clients/codex/lifecycle.js";
+import { codexConfigText } from "../src/clients/codex/paths.js";
 
 describe("Codex managed app lifecycle", () => {
   test("plans app copy and writes managed profile only when applied", async () => {
@@ -40,6 +41,8 @@ describe("Codex managed app lifecycle", () => {
     assert.match(codexConfig, /model = "test-model"/);
     assert.match(codexConfig, /model_provider = "shimex"/);
     assert.match(codexConfig, /base_url = "https:\/\/shimex\.localhost\/v1"/);
+    assert.match(codexConfig, /env_key = "OPENAI_API_KEY"/);
+    assert.doesNotMatch(codexConfig, /experimental_bearer_token/);
     assert.match(codexConfig, /web_search = "live"/);
     assert.match(codexConfig, /\[mcp_servers\.dromio-local\]/);
     assert.match(codexConfig, /command = "node"/);
@@ -60,6 +63,21 @@ describe("Codex managed app lifecycle", () => {
     const state = JSON.parse(await readFile(join(profileHome, ".codex-global-state.json"), "utf8"));
     assert.equal(state["electron-persisted-atom-state"]["electron:onboarding-welcome-pending"], false);
     assert.equal(state["electron-persisted-atom-state"]["electron:onboarding-projectless-completed"], true);
+  });
+
+  test("keeps a host profile on loopback when the advertised URL is remote", () => {
+    const config = testConfig({
+      sourceApp: "/Applications/Codex.app",
+      managedApp: "/tmp/Shimex.app",
+      runtimeHome: "/tmp/shimex-runtime",
+      profileHome: "/tmp/shimex-profile",
+    });
+    config.runtime.host = "0.0.0.0";
+    config.runtime.publicUrl = "http://shimex-host.tailnet.example:5413";
+
+    const text = codexConfigText(config, "test-model");
+
+    assert.match(text, /base_url = "http:\/\/127\.0\.0\.1:5413\/v1"/);
   });
 });
 

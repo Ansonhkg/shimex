@@ -123,7 +123,9 @@ export async function openCodexClient(config, args = []) {
   if (!doctor.managedShimexApp.exists) {
     throw new Error(`Managed Shimex app does not exist: ${paths.managedApp}`);
   }
-  const server = await ensureServerRunning(config);
+  const server = config.runtime?.skipLocalServer
+    ? { started: false, skipped: true, url: config.runtime.publicUrl || null }
+    : await ensureServerRunning(config);
   const child = spawn(
     "open",
     [

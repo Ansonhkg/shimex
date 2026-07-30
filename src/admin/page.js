@@ -1,5 +1,6 @@
 import { codexAuthsCard, codexAuthsRuntimeHelpers } from "./codexAuthsCard.js";
 import { clineAuthsCard, clineAuthsRuntimeHelpers } from "./clineAuthsCard.js";
+import { pairingCard, pairingRuntimeHelpers } from "./pairingCard.js";
 
 export function adminPage() {
   return [
@@ -49,6 +50,7 @@ function styles() {
       }
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
     body { min-height: 100vh; }
     a { color: var(--accent); text-decoration: none; }
@@ -76,6 +78,11 @@ function styles() {
       color: var(--muted); padding: 6px 10px; border-radius: 6px;
     }
     .topbar nav a:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
+    .topbar nav a.pairing-shortcut {
+      color: var(--text); background: rgba(87, 146, 255, 0.12);
+      border: 1px solid rgba(87, 146, 255, 0.3);
+    }
+    #pairing-card { scroll-margin-top: 84px; }
     .status { display: flex; align-items: center; gap: 8px; }
     .pill {
       display: inline-flex; align-items: center; gap: 6px;
@@ -415,6 +422,16 @@ function styles() {
     @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
     .endpoints { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
+    .pairing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .pairing-panel { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .pairing-panel h3 { margin: 0 0 6px; font-size: 14px; }
+    .pairing-panel .muted, .muted { color: var(--muted); font-size: 12px; }
+    .pairing-code-box { margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--border-strong); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+    .pairing-command { color: var(--text); line-height: 1.5; margin-bottom: 8px; overflow-wrap: anywhere; user-select: all; }
+    .pairing-clients { display: grid; gap: 8px; margin-top: 8px; }
+    .pairing-client-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .pairing-help { margin-top: 12px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 900px) { .pairing-grid { grid-template-columns: 1fr; } }
     .endpoints a { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; background: var(--panel-2); border-radius: 6px; border: 1px solid var(--border); }
     .endpoints a code { background: transparent; padding: 0; }
 
@@ -457,6 +474,7 @@ function header() {
       </div>
       <nav>
         <a href="/admin">Overview</a>
+        <a class="pairing-shortcut" href="#pairing-card">Pair client</a>
         <a href="/v1/models" target="_blank" rel="noreferrer">/v1/models</a>
         <a href="/health" target="_blank" rel="noreferrer">/health</a>
       </nav>
@@ -531,6 +549,7 @@ function main() {
             </table>
           </div>
         </div>
+        ${pairingCard()}
         ${codexAuthsCard()}
         ${clineAuthsCard()}
       </section>
@@ -784,9 +803,11 @@ function runtime() {
 
     ${codexAuthsRuntimeHelpers()}
     ${clineAuthsRuntimeHelpers()}
+    ${pairingRuntimeHelpers()}
     els.refresh.addEventListener("click", () => load().then(() => toast("Refreshed", "Doctor and model list updated.", "ok")));
     initCodexAuths();
     initClineAuths();
+    initPairing();
     load();
   `;
 }

@@ -22,6 +22,8 @@ export function normalizeConfig(raw) {
       port: Number(process.env.SHIMEX_PORT || raw.runtime?.port || 5413),
       publicUrl: normalizePublicUrl(process.env.SHIMEX_PUBLIC_URL ?? raw.runtime?.public_url ?? raw.runtime?.publicUrl),
       home: expandHome(raw.runtime?.home || "~/.shimex"),
+      mode: normalizeMode(process.env.SHIMEX_MODE ?? raw.runtime?.mode),
+      advertiseUrl: normalizePublicUrl(process.env.SHIMEX_ADVERTISE_URL ?? raw.runtime?.advertise_url ?? raw.runtime?.advertiseUrl),
     },
     codex: {
       sourceApp: raw.codex?.source_app || "auto",
@@ -70,6 +72,15 @@ function normalizeWebSearch(value) {
     throw new Error(`codex.web_search must be disabled, cached, indexed, or live: ${mode}`);
   }
   return mode;
+}
+
+
+function normalizeMode(value) {
+  const mode = String(value || "").trim().toLowerCase();
+  if (mode === "host" || mode === "client") {
+    return mode;
+  }
+  return "";
 }
 
 function normalizePublicUrl(value) {

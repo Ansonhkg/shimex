@@ -237,9 +237,11 @@ function isPortInUse(config) {
 }
 
 export function serverUrl(config) {
-  return `http://${config.runtime.host}:${config.runtime.port}`;
+  const host = String(config.runtime.host || "127.0.0.1");
+  const safeHost = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+  return `http://${safeHost}:${config.runtime.port}`;
 }
 
 export function publicServerUrl(config) {
-  return config.runtime.publicUrl || serverUrl(config);
+  return config.runtime.publicUrl || config.runtime.advertiseUrl || serverUrl(config);
 }

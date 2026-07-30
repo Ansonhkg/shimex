@@ -39,7 +39,7 @@ export function codexConfigText(config, defaultModelSlug) {
     'name = "Shimex"',
     `base_url = "${tomlEscape(gatewayUrl(config))}/v1"`,
     'wire_api = "responses"',
-    'experimental_bearer_token = "dummy"',
+    'env_key = "OPENAI_API_KEY"',
     "request_max_retries = 3",
     "stream_max_retries = 3",
     "stream_idle_timeout_ms = 600000",
@@ -167,7 +167,38 @@ function tomlStringArray(values) {
 }
 
 function gatewayUrl(config) {
-  return config.runtime.publicUrl || `http://${config.runtime.host}:${config.runtime.port}`;
+  const publicUrl = String(config.runtime.publicUrl || "").replace(/\/+$/, "");
+  if (config.runtime.skipLocalServer) {
+    return publicUrl || localGatewayUrl(config);
+  }
+  if (isLoopbackUrl(publicUrl)) {
+    return publicUrl;
+  }
+  return localGatewayUrl(config);
+}
+
+function localGatewayUrl(config) {
+  const configuredHost = String(config.runtime.host || "127.0.0.1").trim();
+  const host = configuredHost === "0.0.0.0" || configuredHost === "::"
+    ? "127.0.0.1"
+    : configuredHost;
+  const urlHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  return `http://${urlHost}:${config.runtime.port}`;
+}
+
+function isLoopbackUrl(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return hostname === "127.0.0.1"
+      || hostname === "::1"
+      || hostname === "localhost"
+      || hostname.endsWith(".localhost");
+  } catch {
+    return false;
+  }
 }
 
 function tomlEscape(value) {

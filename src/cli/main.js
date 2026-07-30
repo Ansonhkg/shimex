@@ -22,10 +22,28 @@ import {
 } from "../providers/chatgpt-codex/authStore.js";
 import { runExec } from "./exec.js";
 import { expandHome } from "../core/paths.js";
+import {
+  createPairingCode,
+  listClients,
+  listPairingCodes,
+  readClientSession,
+  readModeStore,
+  readPairingStore,
+  revokeAllClients,
+  revokeClient,
+  writeModeStore,
+  writePairingStore,
+} from "../core/pairing.js";
+import { pairWithHost, clientStatus, setupClientDesktop } from "../core/clientMode.js";
+import { resolveAdvertiseUrl } from "../core/network.js";
+import { buildInviteOneLiner, buildInviteUrl, copyTextToClipboard, preparePairingShareCard, shareFileViaAirDrop } from "../core/share.js";
+import { hostServiceStatus, installHostService, removeHostService } from "../server/service.js";
 
 const commands = {
   help: runHelp,
   version: runVersion,
+  up: runUp,
+  down: runDown,
   start: runStart,
   dev: runDev,
   exec: runExec,
@@ -41,6 +59,10 @@ const commands = {
   catalog: runCatalog,
   server: runServer,
   "codex-auth": runCodexAuth,
+  mode: runMode,
+  pair: runPair,
+  host: runHost,
+  client: runClient,
 };
 
 async function main(argv) {
@@ -59,6 +81,8 @@ function runHelp() {
   shimex <command>
 
 start here:
+  shimex up
+  shimex down
   shimex start
   shimex exec [--model <slug-or-display-name>] [prompt]
   shimex dev
@@ -74,6 +98,8 @@ start here:
 commands:
   help                       Show help
   version                    Show version
+  up                         Install and start the persistent host service
+  down                       Stop and remove the persistent host service
   start                      Prepare and open the managed Shimex.app
   exec                       Send a prompt to a Shimex model. Reads prompt from args or stdin.
   dev                        Run the server in the foreground and open Shimex.app
@@ -94,6 +120,14 @@ commands:
   codex-auth add <name>      Paste a chatgpt-codex auth JSON (path, "-" for stdin)
   codex-auth remove <name>   Remove a chatgpt-codex auth profile
   codex-auth use <name>      Set the default chatgpt-codex auth profile
+  mode [host|client]         Show or set host/client mode
+  pair <display-code>        Pair this machine to a host (client mode)
+  host code                  Generate a shareable pairing invite (clipboard + AirDrop on macOS)
+  host clients               List paired clients
+  host revoke <client-id>    Revoke one paired client
+  host revoke-all            Revoke all paired clients
+  client status              Show client pairing status
+  client setup [--open]      Configure managed desktop app against the host
 `);
   return 0;
 }
@@ -109,6 +143,76 @@ async function runDoctor() {
   const report = await codexDoctor(config);
   console.log(JSON.stringify(report, null, 2));
   return report.ok ? 0 : 1;
+}
+
+async function runUp(args) {
+  const config = await loadShimexConfig();
+  try {
+    await writeModeStore(config, "host");
+    const service = await installHostService(config);
+    const result = {
+      ok: service.running,
+      mode: "host",
+      persistent: true,
+      adminUrl: service.plan.adminUrl,
+      service: {
+        label: service.plan.label,
+        plistPath: service.plan.plistPath,
+        installed: service.installed,
+        running: service.running,
+      },
+      health: service.health,
+    };
+    if (hasFlag(args, "--json")) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log("");
+      console.log("Shimex host is up");
+      console.log("=================");
+      console.log("");
+      console.log(`Admin:       ${result.adminUrl}`);
+      console.log(`Service:     ${result.service.label}`);
+      console.log("Persistence: starts at login and restarts after crashes");
+      console.log("");
+      console.log("Open the admin page, then choose “Create client command”.");
+      console.log("");
+    }
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    console.error(String(error?.message || error));
+    return 1;
+  }
+}
+
+async function runDown(args) {
+  const config = await loadShimexConfig();
+  try {
+    const service = await removeHostService(config);
+    const result = {
+      ok: true,
+      persistent: false,
+      removed: service.removed,
+      service: {
+        label: service.plan.label,
+        plistPath: service.plan.plistPath,
+      },
+      backend: service.backend,
+    };
+    if (hasFlag(args, "--json")) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log("");
+      console.log("Shimex host is down");
+      console.log("===================");
+      console.log("");
+      console.log("The persistent login service was removed and the gateway was stopped.");
+      console.log("");
+    }
+    return 0;
+  } catch (error) {
+    console.error(String(error?.message || error));
+    return 1;
+  }
 }
 
 async function runStart(args) {
@@ -149,13 +253,18 @@ async function runDev(args) {
 
 async function runStatus() {
   const config = await loadShimexConfig();
-  const status = await serverStatus(config);
+  const status = await hostServiceStatus(config);
   console.log(JSON.stringify(status, null, 2));
-  return status.running ? 0 : 1;
+  return status.backend.running ? 0 : 1;
 }
 
 async function runStop() {
   const config = await loadShimexConfig();
+  const service = await hostServiceStatus(config);
+  if (service.loaded) {
+    console.error("Shimex is managed by the persistent host service. Run `shimex down` to stop it.");
+    return 1;
+  }
   const result = await stopServer(config);
   console.log(JSON.stringify(result, null, 2));
   return result.stopped || result.reason === "server-not-running" ? 0 : 1;
@@ -383,6 +492,234 @@ async function runCodexAuth(args) {
     console.log(`default -> ${next.defaultProfile}`);
     return 0;
   }
+  return 2;
+}
+
+
+async function runMode(args) {
+  const config = await loadShimexConfig();
+  const next = args[0];
+  if (!next) {
+    const mode = await readModeStore(config);
+    const session = await readClientSession(config);
+    console.log(JSON.stringify({
+      mode: mode.mode,
+      paired: Boolean(session),
+      gatewayUrl: session?.gatewayUrl || "",
+      clientId: session?.clientId || "",
+    }, null, 2));
+    return 0;
+  }
+  try {
+    const result = await writeModeStore(config, next);
+    console.log(JSON.stringify({ ok: true, mode: result.mode }, null, 2));
+    return 0;
+  } catch (error) {
+    console.error(String(error?.message || error));
+    return 1;
+  }
+}
+
+async function runPair(args) {
+  let displayCode = args[0];
+  const fromUrl = readFlag(args, "--from-url");
+  if (fromUrl) {
+    try {
+      const parsed = new URL(fromUrl);
+      const code = parsed.searchParams.get("c") || parsed.searchParams.get("code") || "";
+      if (!code) {
+        console.error("invite URL is missing c= pairing code");
+        return 2;
+      }
+      displayCode = `${code}@${parsed.host}`;
+    } catch (error) {
+      console.error(`invalid --from-url: ${String(error?.message || error)}`);
+      return 2;
+    }
+  }
+  if (!displayCode) {
+    console.error("usage: shimex pair <DISPLAY-CODE@host:port> | --from-url <invite-url>");
+    return 2;
+  }
+  const config = await loadShimexConfig();
+  try {
+    const result = await pairWithHost(config, displayCode, {
+      clientLabel: readFlag(args, "--label") || undefined,
+    });
+    const setup = hasFlag(args, "--setup")
+      ? await setupClientDesktop(config, { open: hasFlag(args, "--open") })
+      : null;
+    console.log(JSON.stringify({
+      ok: true,
+      gatewayUrl: result.session.gatewayUrl,
+      clientId: result.session.clientId,
+      scopes: result.session.scopes,
+      setup,
+    }, null, 2));
+    return 0;
+  } catch (error) {
+    console.error(String(error?.message || error));
+    return 1;
+  }
+}
+
+async function runHost(args) {
+  const subcommand = args[0] || "code";
+  const config = await loadShimexConfig();
+  if (subcommand === "code") {
+    await writeModeStore(config, "host");
+    let store = await readPairingStore(config);
+    const resolved = await resolveAdvertiseUrl(config, { url: readFlag(args, "--url") });
+    const advertiseUrl = resolved.url;
+    const asJson = hasFlag(args, "--json");
+    const noCopy = hasFlag(args, "--no-copy");
+    const noShare = hasFlag(args, "--no-share");
+    try {
+      const created = createPairingCode(store, { advertiseUrl, label: readFlag(args, "--label") || "" });
+      await writePairingStore(config, created.store);
+      const loopback = /^(https?:\/\/)?(127\.0\.0\.1|localhost|shimex\.localhost)(:|\/|$)/i.test(advertiseUrl);
+      const warning = resolved.warning || (loopback
+        ? "advertiseUrl looks local-only. Start Tailscale, or pass --url http://HOST:5413, and bind runtime.host to 0.0.0.0"
+        : "");
+      const inviteUrl = buildInviteUrl(advertiseUrl, created.displayCode);
+      const oneLiner = buildInviteOneLiner(inviteUrl);
+      const shareCard = await preparePairingShareCard({
+        displayCode: created.displayCode,
+        advertiseUrl,
+        expiresAt: created.code.expiresAt,
+        hostLabel: config.project?.name || "shimex",
+        inviteUrl,
+      });
+      let clipboard = { copied: false, reason: noCopy ? "disabled" : "pending" };
+      const share = noShare
+        ? { shared: false, reason: "disabled" }
+        : await shareFileViaAirDrop(shareCard.path);
+
+      if (asJson) {
+        console.log(JSON.stringify({
+          ok: true,
+          mode: "host",
+          displayCode: created.displayCode,
+          code: created.code.code,
+          inviteUrl,
+          oneLiner,
+          advertiseUrl,
+          advertiseSource: resolved.source,
+          expiresAt: created.code.expiresAt,
+          candidates: (resolved.candidates || []).map((item) => ({ source: item.source, url: item.url })),
+          shareFile: shareCard.path,
+          clipboard,
+          share,
+          warning,
+        }, null, 2));
+        return 0;
+      }
+
+      // Prefer copying the single client bootstrap command.
+      if (!noCopy) {
+        const preferred = oneLiner || inviteUrl || created.displayCode;
+        const copied = await copyTextToClipboard(preferred);
+        Object.assign(clipboard, copied);
+      }
+      console.log("");
+      console.log("Shimex host pairing invite");
+      console.log("==========================");
+      console.log("");
+      console.log("Client runs this ONE command:");
+      console.log("");
+      console.log(`  ${oneLiner}`);
+      console.log("");
+      console.log("That command pairs, installs Shimex if needed, and opens the managed app.");
+      console.log("");
+      console.log(`Invite link:  ${inviteUrl}`);
+      console.log(`Fallback:     ${created.displayCode}`);
+      console.log(`Host:         ${advertiseUrl}`);
+      console.log(`Source:       ${resolved.source}`);
+      console.log(`Expires:      ${created.code.expiresAt}`);
+      if (clipboard.copied) {
+        console.log("Clipboard:    one-command setup copied");
+      } else if (!noCopy) {
+        console.log(`Clipboard:    not copied (${clipboard.reason || "unavailable"})`);
+      }
+      if (share.shared) {
+        console.log("AirDrop:      share sheet opened");
+      } else if (share.revealed) {
+        console.log("AirDrop:      invite file revealed in Finder");
+        console.log(`File:         ${shareCard.path}`);
+      } else if (!noShare) {
+        console.log(`Share:        ${share.reason || "unavailable"}`);
+        console.log(`File:         ${shareCard.path}`);
+      } else {
+        console.log(`File:         ${shareCard.path}`);
+      }
+      if (warning) {
+        console.log("");
+        console.log(`Warning: ${warning}`);
+      }
+      console.log("");
+      return 0;
+    } catch (error) {
+      console.error(String(error?.message || error));
+      return 1;
+    }
+  }
+  if (subcommand === "clients") {
+    const store = await readPairingStore(config);
+    console.log(JSON.stringify({
+      codes: listPairingCodes(store),
+      clients: listClients(store),
+    }, null, 2));
+    return 0;
+  }
+  if (subcommand === "revoke") {
+    const clientId = args[1];
+    if (!clientId) {
+      console.error("usage: shimex host revoke <client-id>");
+      return 2;
+    }
+    const store = await readPairingStore(config);
+    const result = revokeClient(store, clientId);
+    await writePairingStore(config, result.store);
+    if (!result.revoked) {
+      console.error(`client "${clientId}" not found`);
+      return 1;
+    }
+    console.log(JSON.stringify({ ok: true, revoked: result.revoked }, null, 2));
+    return 0;
+  }
+  if (subcommand === "revoke-all") {
+    const store = await readPairingStore(config);
+    const result = revokeAllClients(store);
+    await writePairingStore(config, result.store);
+    console.log(JSON.stringify({ ok: true, revokedIds: result.revokedIds }, null, 2));
+    return 0;
+  }
+  console.error("usage: shimex host <code|clients|revoke|revoke-all>");
+  return 2;
+}
+
+async function runClient(args) {
+  const subcommand = args[0] || "status";
+  const config = await loadShimexConfig();
+  if (subcommand === "status") {
+    const status = await clientStatus(config);
+    console.log(JSON.stringify(status, null, 2));
+    return status.paired ? 0 : 1;
+  }
+  if (subcommand === "setup") {
+    try {
+      const result = await setupClientDesktop(config, {
+        open: hasFlag(args, "--open"),
+        apply: !hasFlag(args, "--dry-run"),
+      });
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      console.error(String(error?.message || error));
+      return 1;
+    }
+  }
+  console.error("usage: shimex client <status|setup> [--open]");
   return 2;
 }
 

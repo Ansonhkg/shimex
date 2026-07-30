@@ -9,6 +9,8 @@
   },
   "scripts": {
     "shimex": "node src/cli/main.js",
+    "up": "node src/cli/main.js up",
+    "down": "node src/cli/main.js down",
     "start": "node src/cli/main.js start",
     "dev": "node src/cli/main.js dev",
     "status": "node src/cli/main.js status",

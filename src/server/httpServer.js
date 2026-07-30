@@ -1,5 +1,6 @@
 import { createServer as createHttpServer } from "node:http";
 import { adminPage } from "../admin/page.js";
+import { joinPage } from "../admin/joinPage.js";
 import { deviceLoginPage } from "../admin/deviceLoginPage.js";
 import { getShimexCodexDeviceLogin } from "../providers/chatgpt-codex/deviceLogin.js";
 import { getShimexClineDeviceLogin } from "../providers/cline-pass/deviceLogin.js";
@@ -10,15 +11,33 @@ import { installCodexClient, startCodexClient, syncCodexClient } from "../client
 import { handleProviderModelRequest } from "../providers/adapter.js";
 import { createCodexAuthRoutes } from "./codexAuthRoutes.js";
 import { createClineAuthRoutes } from "./clineAuthRoutes.js";
+import { createPairingRoutes } from "./pairingRoutes.js";
+import { authorizeRequest, resolveAccessContext } from "../core/access.js";
+import { setupScriptResponse } from "./joinSetup.js";
+import { createDesktopBundleStream, getDesktopBundleInfo } from "./desktopBundle.js";
 
 export async function createServer(config) {
   await refreshProviderModelCaches(config);
   const codexAuthRoutes = createCodexAuthRoutes(config);
   const clineAuthRoutes = createClineAuthRoutes(config);
+  const pairingRoutes = createPairingRoutes(config);
   const server = createHttpServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", `http://${request.headers.host || config.runtime.host}`);
-      const result = await routeRequest(config, request, url, { stop: () => server.close(), codexAuthRoutes, clineAuthRoutes });
+      const access = await resolveAccessContext(config, request);
+      const auth = authorizeRequest(url.pathname, request.method || "GET", access);
+      if (!auth.ok) {
+        writeResponse(response, json({ error: auth.error }, { status: auth.status || 401 }));
+        return;
+      }
+      const result = await routeRequest(config, request, url, {
+        stop: () => server.close(),
+        codexAuthRoutes,
+        clineAuthRoutes,
+        pairingRoutes,
+        access,
+        auth,
+      });
       writeResponse(response, result);
     } catch (error) {
       writeResponse(response, json({ error: String(error?.message || error) }, { status: 500 }));
@@ -38,13 +57,34 @@ export async function createServer(config) {
 async function routeRequest(config, request, url, control = {}) {
   const method = request.method || "GET";
   const pathname = url.pathname;
+  if (pathname === "/api/access" || pathname === "/api/mode" || pathname === "/api/pair" || pathname.startsWith("/api/pair/")) {
+    const result = await control.pairingRoutes?.route(request, url);
+    if (result) {
+      return result;
+    }
+  }
   if (method === "GET" && pathname === "/health") {
     return json({ ok: true, service: "shimex" });
+  }
+  if (method === "GET" && pathname === "/join") {
+    return html(joinPage({
+      advertiseUrl: `${url.protocol}//${url.host}`,
+      code: url.searchParams.get("c") || url.searchParams.get("code") || "",
+    }));
+  }
+  if (method === "GET" && pathname === "/join/setup.sh") {
+    return setupScriptResponse(url);
   }
   if (method === "GET" && pathname === "/api/status") {
     return json({
       doctor: await codexDoctor(config),
       models: await discoverModels(config),
+      access: {
+        mode: control.access?.mode || "host",
+        local: Boolean(control.access?.local),
+        clientId: control.access?.client?.id || "",
+        scopes: control.access?.client?.scopes || [],
+      },
     });
   }
   if (method === "GET" && pathname === "/admin") {
@@ -52,6 +92,16 @@ async function routeRequest(config, request, url, control = {}) {
   }
   if (method === "GET" && pathname === "/api/models") {
     return json(await discoverModels(config));
+  }
+  if (method === "GET" && pathname === "/api/desktop/bundle") {
+    return json(await getDesktopBundleInfo(config));
+  }
+  if (method === "GET" && pathname === "/api/desktop/shimex.app.tgz") {
+    const result = await createDesktopBundleStream(config);
+    if (!result.ok) {
+      return json({ error: result.error }, { status: result.status || 404 });
+    }
+    return result;
   }
   if (method === "GET" && pathname === "/v1/models") {
     const now = Math.floor(Date.now() / 1000);

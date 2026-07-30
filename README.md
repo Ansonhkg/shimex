@@ -318,14 +318,29 @@ CLOUDFLARE_AUTH_TOKEN=<your-cloudflare-auth-token>
 ### Start
 
 ```bash
-npm start
+shimex up
+# From a repository checkout:
+npm run up
 ```
 
-This prepares the managed `Shimex.app`, writes the isolated Shimex Codex profile,
-starts the local gateway as a detached process, and opens the managed app. The
-managed profile uses `https://shimex.localhost`; the gateway keeps `http://127.0.0.1:5413` as a direct fallback.
+`shimex up` switches to host mode, installs a per-user macOS LaunchAgent, and
+starts the gateway. The service starts again at login and restarts after a
+crash. Re-running `shimex up` safely refreshes the service definition.
 
-Open the admin UI at `https://shimex.localhost/admin`. If Portless is unavailable, use `http://127.0.0.1:5413/admin` (`5413` reads as “SHIE” in leetspeak).
+Open the admin UI at `http://127.0.0.1:5413/admin` (`5413` reads as “SHIE” in
+leetspeak). Use **Create client command** to generate the copyable one-time
+`curl ... | bash` command for another machine.
+
+To stop the gateway and remove its login service:
+
+```bash
+shimex down
+# From a repository checkout:
+npm run down
+```
+
+Use `npm start` separately when you want to prepare and open the managed
+`Shimex.app`.
 
 If the named route is ever reset, restore it with:
 
@@ -361,6 +376,39 @@ Shimex re-copies the upstream Codex app into the managed `Shimex.app`, reapplies
 
 
 ---
+
+## Host / Client pairing
+
+Share one machine's provider credentials with another machine on the same LAN or Tailscale without copying secrets.
+
+1. On the **host** (keeps all provider logins/keys):
+
+```bash
+shimex up
+```
+
+Then open `http://127.0.0.1:5413/admin`, choose **Create client command**, and
+copy the displayed command.
+
+2. On the **client**, paste the command:
+
+```bash
+curl -fsSL 'http://host:5413/join/setup.sh?c=ABCD-EFGH' | bash
+```
+
+What the client receives:
+- host gateway URL
+- revocable client token
+
+What stays on the host:
+- `.env` provider keys
+- Codex/Cline/Grok sessions
+
+Notes:
+- Pairing codes expire and are one-time.
+- Client desktop setup still needs the original Codex.app installed once on the client so Shimex can create the managed app copy.
+- If Codex.app is missing, the client can still use the host as an OpenAI-compatible endpoint with the client token.
+- See `workflows/host-client-pairing.md`.
 
 ## Configuration
 
