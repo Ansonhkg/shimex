@@ -163,7 +163,7 @@ runtime:
 codex:
   seed_local_auth: true
   bundle_identifier: xyz.shimex.app
-  icon_path: icon.png
+  icon_path: icon.icns
 providers:
   - id: cline-pass
     enabled: true
@@ -188,7 +188,7 @@ providers:
     assert.equal(config.codex.seedLocalAuth, true);
     assert.equal(config.codex.localAuthKey, "shimex-local-api-key");
     assert.equal(config.codex.bundleIdentifier, "xyz.shimex.app");
-    assert.ok(config.codex.iconPath.endsWith("/icon.png"));
+    assert.ok(config.codex.iconPath.endsWith("/icon.icns"));
     assert.ok(config.providers.map((provider) => provider.id).includes("cline-pass"));
     assert.ok(config.providers.map((provider) => provider.id).includes("lm-studio"));
     assert.ok(config.providers.find((provider) => provider.id === "deepseek")?.models.some((model) => model.slug === "deepseek-v4-pro"));

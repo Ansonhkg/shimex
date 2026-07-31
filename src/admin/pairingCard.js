@@ -1,38 +1,66 @@
 export function pairingCard() {
   return [
-    '<div class="card span-12" id="pairing-card">',
-    '  <div class="head">',
-    '    <h2>Host / Client pairing</h2>',
-    '    <span class="meta" id="pairing-meta">loading…</span>',
-    '  </div>',
-    '  <div class="pairing-grid">',
-    '    <div class="pairing-panel">',
-    '      <h3>Mode</h3>',
-    '      <p class="muted">Host keeps provider secrets. Clients pair with a short code and use the host gateway.</p>',
-    '      <div class="button-row" style="margin-top:10px;">',
-    '        <button id="mode-host" type="button">Host mode</button>',
-    '        <button id="mode-client" type="button" class="ghost">Client mode</button>',
+    '<div class="span-12 pairing-page" id="pairing-card">',
+    '  <section class="pairing-card">',
+    '    <div class="pairing-section">',
+    '      <div class="pairing-section-head">',
+    '        <div>',
+    '          <div class="pairing-kicker">Access</div>',
+    '          <h3 class="pairing-title">Connection mode</h3>',
+    '          <p class="pairing-desc">Run this machine as the host gateway or as a paired client.</p>',
+    '        </div>',
     '      </div>',
-    '      <div id="pairing-mode-label" class="muted" style="margin-top:8px;"></div>',
-    '    </div>',
-    '    <div class="pairing-panel">',
-    '      <h3>Connect another machine</h3>',
-    '      <p class="muted">Create a one-time command for another machine on LAN/Tailscale.</p>',
-    '      <div class="button-row" style="margin-top:10px;">',
-    '        <button id="pairing-generate" type="button" class="primary">Create client command</button>',
-    '        <button id="pairing-copy" type="button" class="ghost" disabled>Copy command</button>',
-    '        <button id="pairing-revoke-all" type="button" class="ghost">Revoke all clients</button>',
+    '      <div class="pairing-mode-grid">',
+    '        <div>',
+    '          <div class="pairing-mode-toggle" role="group" aria-label="Connection mode">',
+    '            <button id="mode-host" type="button" aria-pressed="true">Host</button>',
+    '            <button id="mode-client" type="button" aria-pressed="false">Client</button>',
+    '          </div>',
+    '          <div id="pairing-mode-label" class="pairing-sr-only"></div>',
+    '        </div>',
+    '        <div class="pairing-state-card">',
+    '          <div id="pairing-meta" class="pairing-state-line">loading…</div>',
+    '          <div class="pairing-refresh"><span class="pairing-status-dot" aria-hidden="true"></span>Refreshing every 15 seconds</div>',
+    '        </div>',
     '      </div>',
-    '      <div id="pairing-code-box" class="pairing-code-box">No active code</div>',
     '    </div>',
-    '    <div class="pairing-panel">',
-    '      <h3>Paired clients</h3>',
-    '      <div id="pairing-clients" class="pairing-clients"><div class="muted">None yet</div></div>',
+    '    <div class="pairing-section">',
+    '      <div class="pairing-section-head">',
+    '        <div>',
+    '          <div class="pairing-kicker">Invite</div>',
+    '          <h3 class="pairing-title">Client command</h3>',
+    '          <p class="pairing-desc">Create a one-time command for another machine on LAN or Tailscale.</p>',
+    '        </div>',
+    '        <div class="pairing-actions">',
+    '          <button id="pairing-generate" type="button" class="primary">Create client command</button>',
+    '        </div>',
+    '      </div>',
+    '      <div class="pairing-command-box">',
+    '        <div id="pairing-code-box" class="pairing-code-box">No active client command</div>',
+    '        <button id="pairing-copy" type="button" class="ghost pairing-copy" aria-label="Copy command" title="Copy command" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="1.5"></rect><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"></path></svg></button>',
+    '      </div>',
+    '      <div id="pairing-code-expires" class="pairing-expiry">Create a one-time command for another machine on LAN/Tailscale.</div>',
     '    </div>',
-    '  </div>',
-    '  <div class="pairing-help">',
-    '    The command expires after five minutes and can pair one client. Create another whenever needed.',
-    '  </div>',
+    '    <div class="pairing-section">',
+    '      <div class="pairing-section-head">',
+    '        <div>',
+    '          <div class="pairing-kicker">Clients</div>',
+    '          <h3 class="pairing-title">Paired clients</h3>',
+    '          <p class="pairing-desc">Revoke access for machines that no longer need this host.</p>',
+    '        </div>',
+    '        <div class="pairing-actions">',
+    '          <button id="pairing-revoke-all" type="button" class="danger">Revoke all clients</button>',
+    '        </div>',
+    '      </div>',
+    '      <div id="pairing-clients" class="pairing-clients"><div class="pairing-empty">None yet</div></div>',
+    '    </div>',
+    '  </section>',
+    '  <aside class="pairing-security-note">',
+    '    <span class="pairing-security-icon" aria-hidden="true">',
+    '      <svg viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6l8-3Z"></path><path d="m9 12 2 2 4-4"></path></svg>',
+    '    </span>',
+    '    <span>Provider secrets stay on the host. Clients use revocable scoped tokens.</span>',
+    '  </aside>',
     '</div>',
   ].join("\n");
 }
@@ -49,10 +77,12 @@ export function pairingRuntimeHelpers() {
         copy: document.getElementById('pairing-copy'),
         revokeAll: document.getElementById('pairing-revoke-all'),
         codeBox: document.getElementById('pairing-code-box'),
+        codeExpires: document.getElementById('pairing-code-expires'),
         clients: document.getElementById('pairing-clients'),
       };
       if (!els.meta) return;
       let currentCommand = '';
+      let currentMode = 'host';
 
       function clientCommand(advertiseUrl, code) {
         const origin = String(advertiseUrl || '').replace(/\\/+$/, '');
@@ -69,8 +99,8 @@ export function pairingRuntimeHelpers() {
           return;
         }
         els.codeBox.innerHTML =
-          '<div class="pairing-command">' + escapeHtml(currentCommand) + '</div>' +
-          '<div class="muted">expires ' + escapeHtml(code.expiresAt || '') + ' · one-time use</div>';
+          '<div class="pairing-command">' + escapeHtml(currentCommand) + '</div>';
+        els.codeExpires.textContent = 'expires ' + (code.expiresAt || '') + ' · one-time use';
       }
 
       async function copyCommand(text) {
@@ -89,6 +119,17 @@ export function pairingRuntimeHelpers() {
         if (!copied) throw new Error('Clipboard is unavailable');
       }
 
+      function setModeButtons(mode) {
+        if (els.modeHost) {
+          els.modeHost.classList.toggle('primary', mode === 'host');
+          els.modeHost.setAttribute('aria-pressed', mode === 'host' ? 'true' : 'false');
+        }
+        if (els.modeClient) {
+          els.modeClient.classList.toggle('primary', mode === 'client');
+          els.modeClient.setAttribute('aria-pressed', mode === 'client' ? 'true' : 'false');
+        }
+      }
+
       async function loadPairing() {
         try {
           const response = await fetch('/api/access');
@@ -99,11 +140,12 @@ export function pairingRuntimeHelpers() {
             return;
           }
           const mode = data.mode || 'host';
-          els.meta.textContent = mode + ' · ' + String((data.clients || []).length) + ' clients';
-          els.meta.style.color = 'var(--muted)';
+          currentMode = mode;
+          const clientCount = (data.clients || []).length;
+          els.meta.textContent = mode.charAt(0).toUpperCase() + mode.slice(1) + ' · ' + String(clientCount) + ' client' + (clientCount === 1 ? '' : 's');
+          els.meta.style.color = 'var(--text)';
           els.modeLabel.textContent = 'Current mode: ' + mode + (data.advertiseUrl ? (' · advertise ' + data.advertiseUrl) : '');
-          els.modeHost.classList.toggle('primary', mode === 'host');
-          els.modeClient.classList.toggle('primary', mode === 'client');
+          setModeButtons(mode);
           const codes = data.activeCodes || [];
           if (codes.length) {
             const code = codes[codes.length - 1];
@@ -112,16 +154,26 @@ export function pairingRuntimeHelpers() {
             currentCommand = '';
             els.copy.disabled = true;
             els.codeBox.textContent = 'No active client command';
+            els.codeExpires.textContent = 'Create a one-time command for another machine on LAN/Tailscale.';
           }
           const clients = data.clients || [];
           if (!clients.length) {
-            els.clients.innerHTML = '<div class="muted">None yet</div>';
+            els.clients.innerHTML = '<div class="pairing-empty">None yet</div>';
           } else {
             els.clients.innerHTML = clients.map(function (client) {
+              const scopes = (client.scopes || []).map(function (scope) {
+                return '<span class="pairing-scope-chip">' + escapeHtml(scope) + '</span>';
+              }).join('');
+              const label = client.label || client.id;
+              const icon = /mac|laptop|book/i.test(label)
+                ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="12" rx="1.5"></rect><path d="M3 19h18"></path><path d="M8 19v1h8v-1"></path></svg>'
+                : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="12" rx="1.5"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg>';
               return '<div class="pairing-client-row">' +
-                '<div><strong>' + escapeHtml(client.label || client.id) + '</strong>' +
-                '<div class="muted">' + escapeHtml(client.id) + ' · scopes ' + escapeHtml((client.scopes || []).join(', ')) + '</div></div>' +
-                '<button data-revoke="' + escapeHtml(client.id) + '" type="button" class="ghost">Revoke</button>' +
+                '<div class="pairing-client-identity" title="' + escapeHtml(client.id) + '">' +
+                  '<span class="pairing-client-icon">' + icon + '</span>' +
+                  '<div><strong>' + escapeHtml(label) + '</strong><div class="pairing-scopes">' + (scopes || '<span class="muted">No scopes</span>') + '</div></div>' +
+                '</div>' +
+                '<button data-revoke="' + escapeHtml(client.id) + '" type="button" class="danger pairing-revoke">Revoke</button>' +
               '</div>';
             }).join('');
             els.clients.querySelectorAll('button[data-revoke]').forEach(function (button) {
@@ -159,8 +211,17 @@ export function pairingRuntimeHelpers() {
         await loadPairing();
       }
 
-      els.modeHost.addEventListener('click', function () { setMode('host'); });
-      els.modeClient.addEventListener('click', function () { setMode('client'); });
+      function requestModeChange(mode) {
+        if (mode === currentMode) return;
+        const nextLabel = mode === 'host' ? 'Host' : 'Client';
+        const confirmed = window.confirm(
+          'Switch to ' + nextLabel + ' mode? Switching modes can interrupt paired clients and may require them to be configured again. Continue?'
+        );
+        if (confirmed) setMode(mode);
+      }
+
+      els.modeHost.addEventListener('click', function () { requestModeChange('host'); });
+      els.modeClient.addEventListener('click', function () { requestModeChange('client'); });
       els.generate.addEventListener('click', async function () {
         const response = await fetch('/api/pair/code', {
           method: 'POST',

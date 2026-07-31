@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Use Grok 4.5 from a Remote Codex Desktop Client | Shimex</title>
+  <meta name="description" content="Use Grok 4.5 in Codex Desktop from another Tailscale machine. Shimex keeps the host profile private and gives clients a scoped bridge token.">
+  <meta name="application-name" content="Shimex">
+  <meta name="author" content="anson">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="theme-color" content="#000000">
+  <link rel="canonical" href="https://shimex.xyz/blog/host-client-bridge.html">
+  <link rel="icon" type="image/png" href="../icon.png">
+  <link rel="apple-touch-icon" href="../icon.png">
+  <meta property="og:site_name" content="Shimex">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://shimex.xyz/blog/host-client-bridge.html">
+  <meta property="og:title" content="Use Grok 4.5 from a Remote Codex Desktop Client">
+  <meta property="og:description" content="Bridge a Tailscale client to a Shimex host and use the host's Grok 4.5 profile without copying provider secrets.">
+  <meta property="og:image" content="https://shimex.xyz/social-card.png">
+  <meta property="og:image:alt" content="Shimex host and remote client connected by a secure model bridge">
+  <meta property="article:published_time" content="2026-07-30T00:00:00+01:00">
+  <meta property="article:modified_time" content="2026-07-30T00:00:00+01:00">
+  <meta property="article:section" content="Guides">
+  <meta property="article:tag" content="Grok 4.5">
+  <meta property="article:tag" content="Tailscale">
+  <meta property="article:tag" content="Codex Desktop">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Use Grok 4.5 from a Remote Codex Desktop Client">
+  <meta name="twitter:description" content="A practical Shimex host/client bridge for using host profiles from a remote Tailscale machine.">
+  <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BlogPosting",
+        "@id": "https://shimex.xyz/blog/host-client-bridge.html#article",
+        "headline": "Use Grok 4.5 from a Remote Codex Desktop Client",
+        "description": "Use Grok 4.5 in Codex Desktop from another Tailscale machine through a scoped Shimex host/client bridge.",
+        "url": "https://shimex.xyz/blog/host-client-bridge.html",
+        "datePublished": "2026-07-30T00:00:00+01:00",
+        "dateModified": "2026-07-30T00:00:00+01:00",
+        "author": { "@id": "https://anson.sh/#person" },
+        "publisher": { "@id": "https://anson.sh/#person" },
+        "image": "https://shimex.xyz/social-card.png",
+        "isPartOf": { "@id": "https://shimex.xyz/#website" },
+        "mainEntityOfPage": { "@id": "https://shimex.xyz/blog/host-client-bridge.html" },
+        "keywords": ["Grok 4.5", "Codex Desktop", "Tailscale", "remote model gateway", "Shimex host client"]
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://shimex.xyz/blog/host-client-bridge.html#breadcrumbs",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Shimex", "item": "https://shimex.xyz/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://shimex.xyz/blog/" },
+          { "@type": "ListItem", "position": 3, "name": "Host/client bridge", "item": "https://shimex.xyz/blog/host-client-bridge.html" }
+        ]
+      },
+      {
+        "@type": "HowTo",
+        "@id": "https://shimex.xyz/blog/host-client-bridge.html#how-to",
+        "name": "Use a host's Grok 4.5 profile from a remote Tailscale client",
+        "description": "Pair a remote Shimex client to a host without copying provider credentials.",
+        "totalTime": "PT10M",
+        "step": [
+          { "@type": "HowToStep", "name": "Start the host", "text": "Run shimex host up on the machine that has the Grok session." },
+          { "@type": "HowToStep", "name": "Create an invite", "text": "Open the admin page and choose Create client command, or run shimex host code." },
+          { "@type": "HowToStep", "name": "Run the client setup", "text": "Run the generated curl setup.sh command on the remote Tailscale machine." },
+          { "@type": "HowToStep", "name": "Choose Grok 4.5", "text": "Open the managed Shimex app on the client and select Grok 4.5 from the model picker." }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://shimex.xyz/blog/host-client-bridge.html#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Does the remote client need its own Grok login?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. The Grok session stays on the Shimex host. The client uses a scoped Shimex token to send model requests through the host." }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the host need to keep Shimex.app open?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. shimex host up runs the gateway as a persistent host service. The managed desktop app can be opened or stopped independently." }
+          },
+          {
+            "@type": "Question",
+            "name": "Are provider secrets copied to the client?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. The client receives a host URL and revocable client token. Provider keys and Grok/Codex/Cline sessions remain on the host." }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I revoke a remote client?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Run shimex host clients to find the client ID, then run shimex host revoke CLIENT_ID or shimex host revoke-all." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #000;
+      --panel: #0a0a0a;
+      --panel-2: #111;
+      --line: #242424;
+      --line-strong: #3a3a3a;
+      --text: #ededed;
+      --muted: #929292;
+      --accent: #0070f3;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body { margin: 0; color: var(--text); background: radial-gradient(900px 500px at 50% -20%, rgba(255,255,255,.09), transparent 58%), var(--bg); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    a { color: var(--text); text-underline-offset: 3px; }
+    a:hover { color: #fff; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { background: #151515; border: 1px solid #242424; border-radius: 4px; padding: 2px 5px; font-size: .9em; }
+    pre { margin: 14px 0 0; padding: 16px; overflow-x: auto; background: #090909; border: 1px solid var(--line); border-radius: 10px; color: #e5e5e5; line-height: 1.55; }
+    pre code { border: 0; background: transparent; padding: 0; font-size: 13px; }
+    .wrap { width: min(100% - 40px, 920px); margin: 0 auto; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 650; }
+    .brand img { width: 24px; height: 24px; border-radius: 6px; }
+    .nav { display: flex; gap: 16px; font-size: 14px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--text); }
+    main { padding: 76px 0 42px; }
+    .eyebrow { color: #60a5fa; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { max-width: 800px; margin: 14px 0 18px; font-size: clamp(38px, 7vw, 66px); line-height: 1.02; letter-spacing: -.055em; }
+    .dek { max-width: 700px; margin: 0; color: #b2b2b2; font-size: clamp(18px, 2.4vw, 22px); line-height: 1.45; }
+    .byline { display: flex; align-items: center; gap: 12px; margin-top: 26px; color: var(--muted); font-size: 14px; }
+    .dot { width: 4px; height: 4px; border-radius: 50%; background: #666; }
+    .hero-art { margin: 58px 0 62px; }
+    .hero-art img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 16px; background: #050505; }
+    .hero-art figcaption { margin-top: 12px; color: var(--muted); font-size: 13px; }
+    article { max-width: 720px; margin: 0 auto; }
+    article > p:first-child { color: #d6d6d6; font-size: 20px; line-height: 1.55; }
+    h2 { margin: 58px 0 14px; font-size: 26px; line-height: 1.2; letter-spacing: -.025em; }
+    h3 { margin: 28px 0 8px; font-size: 18px; }
+    p { margin: 0 0 16px; }
+    ul, ol { margin: 0 0 18px; padding-left: 24px; }
+    li { margin: 7px 0; }
+    .callout { margin: 24px 0; padding: 18px 20px; border: 1px solid #1d4f8f; border-radius: 10px; background: rgba(0,112,243,.08); }
+    .callout strong { color: #93c5fd; }
+    .step { padding: 18px 0; border-top: 1px solid var(--line); }
+    .step-number { color: #60a5fa; font-family: ui-monospace, monospace; font-size: 13px; font-weight: 700; }
+    .step h3 { margin-top: 5px; }
+    .faq { margin-top: 52px; }
+    .faq-item { padding: 18px 0; border-top: 1px solid var(--line); }
+    .faq-item h3 { margin: 0 0 7px; font-size: 17px; }
+    .faq-item p { color: var(--muted); }
+    .after { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 56px; padding: 20px 0; border-top: 1px solid var(--line); }
+    .after a { color: #93c5fd; }
+    footer { margin-top: 42px; padding: 24px 0 52px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    @media (max-width: 640px) { .wrap { width: min(100% - 28px, 920px); } .nav { gap: 10px; } main { padding-top: 50px; } .hero-art { margin: 40px 0 44px; } h2 { margin-top: 44px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Primary navigation">
+      <a class="brand" href="../"><img src="../icon.png" alt="Shimex">Shimex</a>
+      <div class="nav"><a href="../">Home</a><a href="../#install">Install</a><a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a></div>
+    </nav>
+
+    <main>
+      <div class="eyebrow">Shimex guide · Remote workflows</div>
+      <h1>Use Grok 4.5 from a remote Codex Desktop client.</h1>
+      <p class="dek">Keep the Grok profile on one trusted Shimex host, then use it from another machine over your private Tailscale network.</p>
+      <div class="byline"><time datetime="2026-07-30">Updated July 30, 2026</time><span class="dot"></span><span>6 min read</span></div>
+
+      <figure class="hero-art">
+        <img src="../assets/shimex-bridge.svg" alt="Shimex host keeps Grok 4.5 credentials while a remote Tailscale client uses the model through a bridge" width="1080" height="608">
+        <figcaption>The host keeps the profile. The remote client receives a scoped bridge token, not the provider credentials.</figcaption>
+      </figure>
+
+      <article>
+        <p>Shimex host/client bridging lets a remote machine use the models already configured on your host. If the host has a working Grok 4.5 session, a client on the same Tailscale network can select <code>Grok 4.5</code> in its managed Codex Desktop app without logging into Grok or copying any API keys.</p>
+
+        <div class="callout"><strong>The short version:</strong> start the persistent host, create a one-time client command, run it on the Tailscale client, and open the managed Shimex app. The client routes model traffic to the host over a revocable token.</div>
+
+        <h2 id="what-you-get">What you get</h2>
+        <ul>
+          <li>Grok 4.5 appears in the remote client's Codex model picker when the host session is valid.</li>
+          <li>The host keeps the Grok, Codex, and Cline sessions and provider keys.</li>
+          <li>Pairing uses an expiring one-time code, followed by a revocable client token.</li>
+          <li>The host gateway can stay online even when the host's managed Shimex.app is closed.</li>
+          <li>Host admin controls stay local by default; remote clients receive model-use and catalog-read access.</li>
+        </ul>
+
+        <h2 id="setup">Set it up over Tailscale</h2>
+
+        <div class="step">
+          <div class="step-number">01 / HOST</div>
+          <h3>Sign in and keep the host reachable</h3>
+          <p>On the host, finish the Grok login and confirm the model is visible locally. Shimex reads the host's local Grok session; the client does not need its own login.</p>
+          <pre><code>grok login
+shimex host up</code></pre>
+          <p>If the host URL is not already advertised as a Tailscale address, make the gateway reachable on the Tailscale interface and pass the host URL when creating the invite:</p>
+          <pre><code>shimex host code --url http://HOST_TAILSCALE_NAME:5413</code></pre>
+        </div>
+
+        <div class="step">
+          <div class="step-number">02 / HOST</div>
+          <h3>Create the one-command invite</h3>
+          <p>Open <a href="http://127.0.0.1:5413/admin"><code>http://127.0.0.1:5413/admin</code></a> and choose <strong>Create client command</strong>, or generate one from the terminal:</p>
+          <pre><code>shimex host code</code></pre>
+          <p>The generated command includes an expiring pairing code. Share it only with the intended client.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">03 / CLIENT</div>
+          <h3>Run the setup command</h3>
+          <p>On the remote machine, paste the command from the host:</p>
+          <pre><code>curl -fsSL 'http://HOST_TAILSCALE_NAME:5413/join/setup.sh?c=ABCD-EFGH' | bash</code></pre>
+          <p>The script saves a client session, prepares the managed app when Codex Desktop is installed, and writes a profile that points at the host gateway.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">04 / CLIENT</div>
+          <h3>Open the managed app and choose Grok 4.5</h3>
+          <pre><code>shimex app start</code></pre>
+          <p>Select <code>Grok 4.5</code> in the model picker. Requests now travel through the host bridge while the host's local Grok session handles upstream authentication.</p>
+        </div>
+
+        <h2 id="security">What crosses the bridge?</h2>
+        <p>The client receives the host gateway URL, a client ID, and a revocable token. The default client scopes are <code>models:use</code> and <code>catalog:read</code>. The host's provider API keys, Grok session, Codex profiles, and Cline profiles stay on the host.</p>
+        <p>Tailscale supplies the private network path; Shimex supplies the pairing and authorization boundary. Treat the generated command like a credential until it is redeemed, and revoke the client if the machine is no longer trusted.</p>
+        <pre><code>shimex host clients
+shimex host revoke CLIENT_ID
+# or revoke every paired client
+shimex host revoke-all</code></pre>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+        <h3>The client gets HTTP 401</h3>
+        <p>The saved client token may have been revoked or expired. Generate a fresh invite on the host and rerun the command. The setup script validates a saved token and automatically re-pairs when a fresh code is present.</p>
+        <h3>Grok 4.5 is not in the picker</h3>
+        <p>Confirm that the host can see its Grok session and that the host catalog has refreshed. Restart the persistent host if configuration changed, then restart the managed client app:</p>
+        <pre><code>shimex host down
+shimex host up
+shimex app stop
+shimex app start</code></pre>
+        <h3>The client cannot reach the host</h3>
+        <p>Check that both machines are connected to Tailscale, the host advertises its Tailscale hostname or IP, and the gateway is bound to a reachable interface. The host's local admin page is not the same thing as the address the client should use.</p>
+
+        <section class="faq" id="faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">FAQ</h2>
+          <div class="faq-item"><h3>Does the remote client need its own Grok login?</h3><p>No. Only the host needs the Grok session. The client uses its scoped Shimex token.</p></div>
+          <div class="faq-item"><h3>Does the host need Shimex.app open?</h3><p>No. <code>shimex host up</code> keeps the backend running independently from the managed app window.</p></div>
+          <div class="faq-item"><h3>Are provider secrets copied?</h3><p>No. The bridge transports model requests and responses; provider credentials remain on the host.</p></div>
+          <div class="faq-item"><h3>How do I stop only the client app?</h3><p>Run <code>shimex app stop</code>. Use <code>shimex host down</code> only when you want to take the host gateway offline.</p></div>
+        </section>
+
+        <div class="after"><a href="../">← Back to Shimex</a><a href="../#install">Read the install guide →</a></div>
+      </article>
+    </main>
+
+    <footer><span>Shimex is an unofficial, source-preserving Codex Desktop companion.</span><span><a href="../">Home</a> · <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a></span></footer>
+  </div>
+</body>
+</html>

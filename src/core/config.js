@@ -32,7 +32,7 @@ export function normalizeConfig(raw) {
       managedAppPath: raw.codex?.managed_app_path || "~/Applications/Shimex.app",
       profileHome: raw.codex?.profile_home || "~/.shimex/codex-profile",
       userDataDir: raw.codex?.user_data_dir || "~/.shimex/codex-user-data",
-      iconPath: normalizeProjectPath(raw.codex?.icon_path || "icon.png"),
+      iconPath: normalizeProjectPath(raw.codex?.icon_path || "icon.icns"),
       seedLocalAuth: raw.codex?.seed_local_auth !== false,
       localAuthKey: String(raw.codex?.local_auth_key || "shimex-local-api-key"),
       mcpServers: normalizeMcpServers(raw.codex?.mcp_servers),

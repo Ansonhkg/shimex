@@ -447,7 +447,7 @@ codex:
   managed_app_path: ~/Applications/Shimex.app
   profile_home: ~/.shimex/codex-profile
   user_data_dir: ~/.shimex/codex-user-data
-  icon_path: icon.png
+  icon_path: icon.icns
   seed_local_auth: true
 ```
 

@@ -32,6 +32,7 @@ const BUNDLE_PATCHES = [MODEL_PICKER_PATCH, SIDEBAR_RECENT_THREADS_PATCH];
 const ICON_CANVAS_SIZE = 1024;
 const ICON_TILE_MARGIN = 0;
 const ICON_TILE_RADIUS = 220;
+const ICON_TILE_COLOR = "rgba(5,5,5,1)";
 const ICON_ARTWORK_SIZE = 1060;
 const ICON_ARTWORK_OFFSET_X = 62;
 const ICON_ARTWORK_OFFSET_Y = 10;
@@ -257,6 +258,11 @@ async function updateManagedAppIcon(config, managedApp, infoPlist) {
   if (!await exists(resources)) {
     return { changed: false, reason: "resources-dir-missing", iconPath };
   }
+  if (iconPath.toLowerCase().endsWith(".icns")) {
+    await copyPrebuiltIcns(iconPath, resources);
+    await setBundleIcon(infoPlist, "app.icns");
+    return { changed: true, iconPath, icnsPath: join(resources, "app.icns"), source: "prebuilt" };
+  }
   const tempRoot = await mkdtemp(join(tmpdir(), "shimex-icns-"));
   const normalizedIconPath = join(tempRoot, "normalized-icon.png");
   const tempIcns = join(tempRoot, "app.icns");
@@ -295,6 +301,12 @@ async function copyPngIcons(iconPath, resources) {
     const path = join(resources, target);
     await mkdir(dirname(path), { recursive: true });
     await cp(iconPath, path);
+  }
+}
+
+async function copyPrebuiltIcns(iconPath, resources) {
+  for (const name of ["app.icns", "electron.icns", "icon.icns"]) {
+    await cp(iconPath, join(resources, name));
   }
 }
 
@@ -339,7 +351,7 @@ async function normalizeIconPng(iconPath, outputPath) {
       "-type",
       "TrueColorAlpha",
       "-fill",
-      "rgba(255,255,255,1)",
+      ICON_TILE_COLOR,
       "-draw",
       `roundrectangle ${ICON_TILE_MARGIN},${ICON_TILE_MARGIN} ${ICON_CANVAS_SIZE - ICON_TILE_MARGIN},${ICON_CANVAS_SIZE - ICON_TILE_MARGIN} ${ICON_TILE_RADIUS},${ICON_TILE_RADIUS}`,
       `PNG32:${backgroundPath}`,

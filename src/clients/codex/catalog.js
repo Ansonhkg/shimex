@@ -78,7 +78,7 @@ function defaultReasoningLevels() {
   ];
 }
 
-function codexDisplayName(model) {
+export function codexDisplayName(model) {
   if (model.codexDisplayName) {
     return model.codexDisplayName;
   }

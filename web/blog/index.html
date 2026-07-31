@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shimex Guides — Remote Model Workflows</title>
+  <meta name="description" content="Practical Shimex guides for host/client bridging, Tailscale remote workflows, model profiles, and Codex Desktop.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://shimex.xyz/blog/">
+  <link rel="icon" type="image/png" href="../icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Shimex">
+  <meta property="og:url" content="https://shimex.xyz/blog/">
+  <meta property="og:title" content="Shimex Guides — Remote Model Workflows">
+  <meta property="og:description" content="Guides for using Shimex host profiles from remote Codex Desktop clients over Tailscale.">
+  <meta property="og:image" content="https://shimex.xyz/social-card.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": "https://shimex.xyz/blog/#page",
+    "url": "https://shimex.xyz/blog/",
+    "name": "Shimex Guides",
+    "description": "Practical Shimex guides for host/client bridging and remote model workflows.",
+    "isPartOf": { "@id": "https://shimex.xyz/#website" },
+    "hasPart": { "@id": "https://shimex.xyz/blog/host-client-bridge.html#article" }
+  }
+  </script>
+  <style>
+    :root { color-scheme: dark; --bg: #000; --panel: #0a0a0a; --line: #252525; --text: #ededed; --muted: #929292; --accent: #60a5fa; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(800px 400px at 50% -10%, rgba(255,255,255,.08), transparent 58%), var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    a { color: var(--text); text-underline-offset: 3px; }
+    .wrap { width: min(100% - 40px, 920px); margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 650; }
+    .brand img { width: 24px; height: 24px; border-radius: 6px; }
+    .nav { display: flex; gap: 16px; font-size: 14px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--text); }
+    main { padding: 82px 0 46px; }
+    .eyebrow { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 14px 0 16px; font-size: clamp(40px, 7vw, 66px); line-height: 1.02; letter-spacing: -.055em; }
+    .intro { max-width: 620px; color: #b2b2b2; font-size: 20px; line-height: 1.45; }
+    .card { display: block; margin-top: 52px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); text-decoration: none; }
+    .card:hover { border-color: #555; }
+    .card .meta { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .card h2 { margin: 10px 0 8px; font-size: 26px; line-height: 1.2; letter-spacing: -.025em; }
+    .card p { max-width: 660px; margin: 0; color: var(--muted); }
+    .card .read { display: inline-block; margin-top: 18px; color: #93c5fd; font-size: 14px; }
+    footer { margin-top: 52px; padding: 24px 0 52px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    @media (max-width: 640px) { .wrap { width: min(100% - 28px, 920px); } main { padding-top: 54px; } .nav { gap: 10px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Primary navigation">
+      <a class="brand" href="../"><img src="../icon.png" alt="Shimex">Shimex</a>
+      <div class="nav"><a href="../">Home</a><a href="../#install">Install</a><a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a></div>
+    </nav>
+    <main>
+      <div class="eyebrow">Shimex guides</div>
+      <h1>Remote model workflows.</h1>
+      <p class="intro">Short, practical guides for keeping provider profiles on one trusted machine and using them from Codex Desktop clients elsewhere.</p>
+      <a class="card" href="host-client-bridge.html">
+        <div class="meta">Updated July 30, 2026 · 6 min read</div>
+        <h2>Use Grok 4.5 from a remote Codex Desktop client</h2>
+        <p>Pair a Tailscale machine to a Shimex host with a one-time command, keep the Grok session private, and select Grok 4.5 from the remote model picker.</p>
+        <span class="read">Read the guide →</span>
+      </a>
+    </main>
+    <footer><span>Shimex is an unofficial, source-preserving Codex Desktop companion.</span><span><a href="../">Home</a> · <a href="https://github.com/Ansonhkg/shimex" rel="noopener">GitHub</a></span></footer>
+  </div>
+</body>
+</html>

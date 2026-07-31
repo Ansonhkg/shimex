@@ -3,32 +3,34 @@ import assert from "node:assert/strict";
 
 import { codexAuthsCard, codexAuthsRuntimeHelpers } from "../src/admin/codexAuthsCard.js";
 import { clineAuthsCard, clineAuthsRuntimeHelpers } from "../src/admin/clineAuthsCard.js";
+import { grokAuthsCard, grokAuthsRuntimeHelpers } from "../src/admin/grokAuthsCard.js";
+import { adminPage } from "../src/admin/page.js";
 
 describe("admin auth card markup", () => {
-  test("codexAuthsCard renders profile-card container with sign-in and paste affordances", () => {
+  test("codexAuthsCard uses shared auth-page shell with sign-in and paste affordances", () => {
     const html = codexAuthsCard();
-    assert.match(html, /class="auth-panel span-12"/);
+    assert.match(html, /class="auth-page span-12"/);
+    assert.match(html, /class="auth-shell"/);
     assert.match(html, /id="codex-auths-panel"/);
     assert.match(html, /id="codex-auths-title"/);
     assert.match(html, /id="codex-auths-rows"/);
     assert.match(html, /class="auth-profiles"/);
+    assert.match(html, /class="auth-signin"/);
     assert.match(html, /id="codex-auths-device-start"/);
     assert.match(html, /id="codex-auths-paste-save"/);
-    // Loading state is shown up-front instead of a skeleton table row.
     assert.match(html, /Loading Codex profiles/);
-    // Refresh button is present in the head.
     assert.match(html, /id="codex-auths-refresh"/);
-    // Sign-in section is visible (no display:none) — regression guard.
     assert.doesNotMatch(html, /id="codex-auths-actions" style="display:none"/);
-    // Paste-JSON details is a visible collapsed <details>.
     assert.doesNotMatch(html, /id="codex-auths-paste-details" style="display:none/);
-    // No legacy <table> markup should remain after the redesign.
     assert.doesNotMatch(html, /<table/);
+    // Page title lives in the topbar; card should not restate a giant H2.
+    assert.doesNotMatch(html, /<h2 id="codex-auths-title"/);
   });
 
-  test("clineAuthsCard mirrors the codex card structure", () => {
+  test("clineAuthsCard mirrors the shared auth-page structure", () => {
     const html = clineAuthsCard();
-    assert.match(html, /class="auth-panel span-12"/);
+    assert.match(html, /class="auth-page span-12"/);
+    assert.match(html, /class="auth-shell"/);
     assert.match(html, /id="cline-auths-panel"/);
     assert.match(html, /id="cline-auths-title"/);
     assert.match(html, /id="cline-auths-rows"/);
@@ -40,13 +42,30 @@ describe("admin auth card markup", () => {
     assert.doesNotMatch(html, /id="cline-auths-paste-details" style="display:none/);
     assert.doesNotMatch(html, /<table/);
   });
+
+  test("grokAuthsCard uses the same shell language", () => {
+    const html = grokAuthsCard();
+    assert.match(html, /class="auth-page span-12"/);
+    assert.match(html, /class="auth-shell"/);
+    assert.match(html, /id="grok-auths-panel"/);
+    assert.match(html, /id="grok-auths-title"/);
+    assert.match(html, /id="grok-auths-rows"/);
+    assert.match(html, /class="auth-signin"/);
+    assert.match(html, /id="grok-auths-refresh"/);
+    assert.match(html, /id="grok-auths-open-billing"/);
+    assert.doesNotMatch(html, /<h2 id="grok-auths-title"/);
+  });
+
+  test("admin page CSS defines shared auth shell layout", () => {
+    const html = adminPage();
+    assert.match(html, /\.auth-shell\s*,\s*\.auth-panel\s*\{/);
+    assert.match(html, /\.auth-toolbar\s*,\s*\.auth-panel \.head\s*\{/);
+    assert.match(html, /\.auth-signin\s*\{/);
+    assert.match(html, /grid-template-columns:\s*minmax\(160px, 200px\) minmax\(0, 1fr\) minmax\(180px, 220px\)/);
+  });
 });
 
 describe("admin auth card runtime helpers", () => {
-  // The runtime helpers are concatenated into the page script. They reference
-  // globals provided by the page (escapeHtml, parseJson, toast) and must define
-  // the expected entrypoints plus the new usage-graph renderers.
-
   test("codex runtime defines card init + usage ring + refresh helpers", () => {
     const js = codexAuthsRuntimeHelpers();
     for (const needle of [
@@ -70,13 +89,10 @@ describe("admin auth card runtime helpers", () => {
     ]) {
       assert.ok(js.includes(needle), `missing ${needle}`);
     }
-    // Ring renderer emits an SVG circle with a stroke-dashoffset so the
-    // percentage is actually drawn as a graph, not a static label.
     assert.match(js, /stroke-dashoffset/);
     assert.match(js, /% remaining/);
     assert.match(js, /return 'var\(--ok\)'/);
     assert.doesNotMatch(js, /codexUsageLane\([^\\n]+color,/);
-    // The new card row uses the auth-profile grid, not a <tr>.
     assert.match(js, /class="auth-profile"/);
   });
 
@@ -106,6 +122,21 @@ describe("admin auth card runtime helpers", () => {
     assert.match(js, /return 'var\(--ok\)'/);
     assert.doesNotMatch(js, /#9F57FA/);
     assert.doesNotMatch(js, /clineUsageLane\([^\\n]+color,/);
+    assert.match(js, /class="auth-profile"/);
+  });
+
+  test("grok runtime still renders profile + usage helpers", () => {
+    const js = grokAuthsRuntimeHelpers();
+    for (const needle of [
+      "function initGrokAuths()",
+      "function renderGrokAuths()",
+      "function grokProfileRow(",
+      "function grokUsageLane(",
+      "function refreshGrokUsage()",
+      "/api/grok-auth",
+    ]) {
+      assert.ok(js.includes(needle), `missing ${needle}`);
+    }
     assert.match(js, /class="auth-profile"/);
   });
 });

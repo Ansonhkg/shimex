@@ -5,21 +5,32 @@ import { deviceLoginPage } from "../admin/deviceLoginPage.js";
 import { getShimexCodexDeviceLogin } from "../providers/chatgpt-codex/deviceLogin.js";
 import { getShimexClineDeviceLogin } from "../providers/cline-pass/deviceLogin.js";
 import { discoverModels, refreshProviderModelCaches } from "../core/modelDiscovery.js";
-import { generateCodexCatalog } from "../clients/codex/catalog.js";
+import { codexDisplayName, generateCodexCatalog } from "../clients/codex/catalog.js";
 import { codexDoctor } from "../clients/codex/doctor.js";
 import { installCodexClient, startCodexClient, syncCodexClient } from "../clients/codex/lifecycle.js";
 import { handleProviderModelRequest } from "../providers/adapter.js";
 import { createCodexAuthRoutes } from "./codexAuthRoutes.js";
 import { createClineAuthRoutes } from "./clineAuthRoutes.js";
+import { createGrokAuthRoutes } from "./grokAuthRoutes.js";
 import { createPairingRoutes } from "./pairingRoutes.js";
 import { authorizeRequest, resolveAccessContext } from "../core/access.js";
 import { setupScriptResponse } from "./joinSetup.js";
 import { createDesktopBundleStream, getDesktopBundleInfo } from "./desktopBundle.js";
+import {
+  listShimexProviderSections,
+  readShimexConfigFile,
+  replaceShimexProviderSection,
+  validateShimexConfigText,
+  writeShimexConfigFile,
+} from "../core/configFile.js";
+import { readProjectEnvFile, validateProjectEnvText, writeProjectEnvFile } from "../core/env.js";
+import { restartHostService } from "./service.js";
 
 export async function createServer(config) {
   await refreshProviderModelCaches(config);
   const codexAuthRoutes = createCodexAuthRoutes(config);
   const clineAuthRoutes = createClineAuthRoutes(config);
+  const grokAuthRoutes = createGrokAuthRoutes(config);
   const pairingRoutes = createPairingRoutes(config);
   const server = createHttpServer(async (request, response) => {
     try {
@@ -34,6 +45,7 @@ export async function createServer(config) {
         stop: () => server.close(),
         codexAuthRoutes,
         clineAuthRoutes,
+        grokAuthRoutes,
         pairingRoutes,
         access,
         auth,
@@ -76,15 +88,160 @@ async function routeRequest(config, request, url, control = {}) {
     return setupScriptResponse(url);
   }
   if (method === "GET" && pathname === "/api/status") {
+    const models = await discoverModels(config);
     return json({
       doctor: await codexDoctor(config),
-      models: await discoverModels(config),
+      models: models.map((model) => ({
+        ...model,
+        pickerDisplayName: codexDisplayName(model),
+      })),
+      catalog: generateCodexCatalog(models),
       access: {
         mode: control.access?.mode || "host",
         local: Boolean(control.access?.local),
         clientId: control.access?.client?.id || "",
         scopes: control.access?.client?.scopes || [],
       },
+    });
+  }
+  if (method === "GET" && pathname === "/api/config") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Config editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    const file = await readShimexConfigFile();
+    return json({
+      path: file.path,
+      text: file.text,
+      bytes: file.bytes,
+      mtime: file.mtime,
+      mtimeMs: file.mtimeMs,
+      editable: true,
+      note: "Saving writes shimex.yml on this host. Restart the host service to apply.",
+    });
+  }
+  if (method === "GET" && pathname === "/api/config/providers") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Provider configuration is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    const file = await readShimexConfigFile();
+    return json({
+      path: file.path,
+      mtime: file.mtime,
+      providers: listShimexProviderSections(file.text),
+      note: "Provider forms update only their matching shimex.yml section. Restart the host service to apply.",
+    });
+  }
+  if (method === "PUT" && pathname.startsWith("/api/config/providers/")) {
+    if (!control.access?.local) {
+      return json({ error: { message: "Provider configuration is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    try {
+      const providerId = decodeURIComponent(pathname.slice("/api/config/providers/".length));
+      const body = await readJsonBody(request);
+      const file = await readShimexConfigFile();
+      const nextText = replaceShimexProviderSection(file.text, providerId, body?.provider);
+      const saved = await writeShimexConfigFile(nextText);
+      const provider = listShimexProviderSections(nextText).find((item) => item.id === providerId);
+      return json({
+        ...saved,
+        provider,
+        message: `${providerId} configuration saved. Restart the host service to apply.`,
+      });
+    } catch (error) {
+      return json({ error: String(error?.message || error) }, { status: 400 });
+    }
+  }
+  if (method === "POST" && pathname === "/api/config/validate") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Config editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    try {
+      const body = await readJsonBody(request);
+      const validation = await validateShimexConfigText(body?.text ?? "");
+      return json({
+        ok: true,
+        path: validation.path,
+        providerCount: validation.providerCount,
+        enabledProviders: validation.enabledProviders,
+      });
+    } catch (error) {
+      return json({ ok: false, error: String(error?.message || error) }, { status: 400 });
+    }
+  }
+  if (method === "PUT" && pathname === "/api/config") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Config editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    try {
+      const body = await readJsonBody(request);
+      const saved = await writeShimexConfigFile(body?.text ?? "");
+      return json({
+        ...saved,
+        message: "shimex.yml saved. Restart the host service to apply.",
+      });
+    } catch (error) {
+      return json({ error: String(error?.message || error) }, { status: 400 });
+    }
+  }
+
+  if (method === "GET" && pathname === "/api/env") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Env editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    const file = await readProjectEnvFile();
+    return json({
+      path: file.path,
+      text: file.text,
+      exists: file.exists,
+      bytes: file.bytes,
+      mtime: file.mtime,
+      mtimeMs: file.mtimeMs,
+      keys: file.keys,
+      editable: true,
+      note: "Saving writes .env on this host. Restart the host service to apply.",
+    });
+  }
+  if (method === "POST" && pathname === "/api/env/validate") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Env editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    try {
+      const body = await readJsonBody(request);
+      const validation = validateProjectEnvText(body?.text ?? "");
+      return json({ ok: true, keyCount: validation.keyCount, keys: validation.keys });
+    } catch (error) {
+      return json({ ok: false, error: String(error?.message || error) }, { status: 400 });
+    }
+  }
+  if (method === "PUT" && pathname === "/api/env") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Env editing is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    try {
+      const body = await readJsonBody(request);
+      const saved = await writeProjectEnvFile(body?.text ?? "");
+      return json({
+        ...saved,
+        message: ".env saved. Restart the host service to apply.",
+      });
+    } catch (error) {
+      return json({ error: String(error?.message || error) }, { status: 400 });
+    }
+  }
+  if (method === "POST" && pathname === "/api/host/restart") {
+    if (!control.access?.local) {
+      return json({ error: { message: "Host restart is local-only.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    // Kickstart asynchronously so this response can still flush.
+    setTimeout(() => {
+      restartHostService(config).catch((error) => {
+        console.error(`[host-restart] ${String(error?.message || error)}`);
+      });
+    }, 50);
+    return json({
+      ok: true,
+      restarting: true,
+      message: "Host restart requested. Reload the admin page in a moment.",
     });
   }
   if (method === "GET" && pathname === "/admin") {
@@ -127,6 +284,10 @@ async function routeRequest(config, request, url, control = {}) {
     if (result) {
       return result;
     }
+  }
+  if (pathname === "/api/grok-auth" || pathname.startsWith("/api/grok-auth/")) {
+    const result = await control.grokAuthRoutes?.route(request, url);
+    if (result) return result;
   }
   if (method === "GET" && pathname === "/admin/codex-auth/device") {
     const id = url.searchParams.get("id");

@@ -3,18 +3,42 @@ import assert from "node:assert/strict";
 import { adminPage } from "../src/admin/page.js";
 
 describe("admin page shell", () => {
-  test("uses a left icon rail and removes Managed Codex app setup card", () => {
+  test("uses an expanded left navigation and removes Managed Codex app setup card", () => {
     const html = adminPage();
 
     assert.match(html, /class="sidebar"/);
     assert.match(html, /class="sidebar-nav"/);
+    assert.match(html, /class="sidebar-brand"/);
+    assert.match(html, /data:image\/png;base64,/);
+    assert.match(html, /class="nav-label">Overview</);
+    assert.match(html, /class="nav-label">Pairing</);
+    assert.match(html, /class="nav-label">Codex</);
+    assert.match(html, /class="nav-label">Cline</);
+    assert.match(html, /--sidebar-w:\s*232px/);
+    assert.match(html, /max-width:\s*960px/);
     assert.match(html, /data-view="overview"/);
-    assert.match(html, /data-view="models"/);
+    assert.match(html, /data-view="config"/);
+    assert.match(html, /id="panel-config"/);
+    assert.match(html, /id="config-editor"/);
+    assert.match(html, /id="env-editor"/);
+    assert.match(html, /id="config-tab-env"/);
+    assert.match(html, /id="config-highlight"/);
+    assert.match(html, /function highlightYaml/);
+    assert.match(html, /tok-key/);
     assert.match(html, /data-view="pairing"/);
     assert.match(html, /data-view="codex"/);
     assert.match(html, /data-view="cline"/);
+    assert.match(html, /data-view="grok"/);
+    assert.match(html, /nav-separator/);
+    assert.match(html, />Provider</);
+    assert.match(html, /<div class="nav-separator">Advanced<\/div>[\s\S]*data-view="config"/);
+    assert.match(html, /id="panel-grok"/);
+    assert.match(html, /id="grok-auths-panel"/);
     assert.match(html, /id="panel-overview"/);
-    assert.match(html, /id="panel-models"/);
+    assert.match(html, /id="models-section"/);
+    assert.doesNotMatch(html, /id="panel-models"/);
+    assert.match(html, /Model picker preview/);
+    assert.match(html, /id="picker-list"/);
     assert.match(html, /id="panel-pairing"/);
     assert.match(html, /id="panel-codex"/);
     assert.match(html, /id="panel-cline"/);
@@ -24,11 +48,20 @@ describe("admin page shell", () => {
     assert.match(html, /id="pairing-card"/);
     assert.match(html, /id="codex-auths-panel"/);
     assert.match(html, /id="cline-auths-panel"/);
+    assert.match(html, /\.grid > \.card\s*\{/);
+    assert.match(html, /background: transparent;\s*border: 0;\s*border-radius: 0;\s*box-shadow: none;/);
+    assert.match(html, /\.auth-shell\s*,\s*\.auth-panel\s*\{/);
+    assert.match(html, /class="auth-page span-12"/);
+    assert.match(html, /class="span-12 pairing-page"/);
+    assert.match(html, /id="health-pill" class="health-dot"/);
+    assert.match(html, /title="connecting…"/);
+    assert.doesNotMatch(html, /id="health-label"/);
 
     assert.doesNotMatch(html, /Managed Codex app/);
     assert.doesNotMatch(html, /id="actions"/);
     assert.doesNotMatch(html, /renderActions/);
     assert.doesNotMatch(html, /Set up and open/);
     assert.doesNotMatch(html, /Update and open/);
+    assert.doesNotMatch(html, /sidebar-brand"[^>]*>S</);
   });
 });
