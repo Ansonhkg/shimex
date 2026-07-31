@@ -2,6 +2,8 @@ import { authMissingResult, joinEndpoint, openAiHeaders, readSseJson, upstreamEr
 import { jsonResult, streamResult, validateModelInput } from "../routes.js";
 import {
   chatToResponsesRequest,
+  codexAppToolHint,
+  ensureCodexAppThreadTools,
   responsePayloadToEvents,
   responseToChatCompletion,
   rewriteResponseModel,
@@ -21,13 +23,22 @@ export async function handleOpenAiResponsesRequest(route, pathname, body, option
     });
   }
   if (pathname === "/v1/responses" || pathname === "/v1/responses/compact") {
-    return await postResponses(route, { ...body, model: route.model.upstreamModel }, {
+    return await postResponses(route, { ...body, model: route.model.upstreamModel, ...codexAppToolFields(body) }, {
       requestedModel: route.model.slug,
       asChat: false,
       fetch: options.fetch || fetch,
     });
   }
   return null;
+}
+
+function codexAppToolFields(body) {
+  const tools = ensureCodexAppThreadTools(body.tools);
+  const hint = codexAppToolHint(tools);
+  const instructions = hint && !String(body.instructions || "").includes(hint)
+    ? [body.instructions, hint].filter(Boolean).join("\n\n")
+    : body.instructions;
+  return { tools, instructions };
 }
 
 async function postResponses(route, body, options) {

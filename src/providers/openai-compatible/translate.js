@@ -692,14 +692,7 @@ export function ensureCodexAppThreadTools(tools) {
   if (!Array.isArray(tools)) {
     return tools;
   }
-  const hasCodexNamespace = tools.some((tool) => tool?.type === "namespace" && tool.name === "codex_app");
-  const hasThreadSend = tools.some((tool) => {
-    if (tool?.type === "namespace" && tool.name === "codex_app" && Array.isArray(tool.tools)) {
-      return tool.tools.some((nested) => nested?.name === "send_message_to_thread");
-    }
-    return (tool?.name || tool?.function?.name) === "send_message_to_thread";
-  });
-  if (hasCodexNamespace || hasThreadSend || !hasLoadedCodexAppTool(tools)) {
+  if (!hasLoadedCodexAppTool(tools)) {
     return tools;
   }
   const existingNames = new Set(tools.flatMap(toolNames));
@@ -708,7 +701,17 @@ export function ensureCodexAppThreadTools(tools) {
   if (!missingThreadTools.length) {
     return tools;
   }
-  return [...tools, { ...codexAppThreadNamespaceTool(), tools: missingThreadTools }];
+  const existingNamespaceIndex = tools.findIndex((tool) => tool?.type === "namespace" && tool.name === "codex_app");
+  if (existingNamespaceIndex === -1) {
+    return [...tools, { ...codexAppThreadNamespaceTool(), tools: missingThreadTools }];
+  }
+  const existingNamespace = tools[existingNamespaceIndex];
+  const merged = [...tools];
+  merged[existingNamespaceIndex] = {
+    ...existingNamespace,
+    tools: [...(Array.isArray(existingNamespace.tools) ? existingNamespace.tools : []), ...missingThreadTools],
+  };
+  return merged;
 }
 
 function toolNames(tool) {
@@ -725,7 +728,7 @@ function hasLoadedCodexAppTool(tools) {
     "read_thread_terminal",
     "load_workspace_dependencies",
   ]);
-  return tools.some((tool) => loadedCodexAppTools.has(tool?.name || tool?.function?.name));
+  return tools.flatMap(toolNames).some((name) => loadedCodexAppTools.has(name));
 }
 
 function codexAppThreadNamespaceTool() {
@@ -749,9 +752,19 @@ function codexAppThreadNamespaceTool() {
         model: { type: "string", description: "Optional model override." },
         thinking: { type: "string", description: "Optional reasoning effort override." },
       }, ["threadId", "prompt"]),
-      functionTool("create_thread", "Create a separate Codex thread only when the user explicitly asks for a new or background thread.", {
+      functionTool("create_thread", "Create a separate Codex thread only when the user explicitly asks for a new or background thread. Only projectless targets are supported here.", {
         prompt: { type: "string", description: "Initial prompt for the new thread." },
-      }, ["prompt"]),
+        target: {
+          type: "object",
+          additionalProperties: false,
+          description: "Where to create the thread. Only the projectless target is supported.",
+          properties: {
+            type: { type: "string", enum: ["projectless"] },
+            directoryName: { type: "string", description: "Optional projectless output directory name." },
+          },
+          required: ["type"],
+        },
+      }, ["prompt", "target"]),
       functionTool("fork_thread", "Fork a Codex thread. Omit threadId to fork the calling thread, or pass a threadId to fork that specific thread.", {
         threadId: { type: "string", description: "Optional source thread id to fork." },
       }, []),
@@ -759,6 +772,44 @@ function codexAppThreadNamespaceTool() {
         threadId: { type: "string", description: "Other thread id to hand off." },
         followUpPrompt: { type: "string", description: "Optional prompt to send after handoff succeeds." },
       }, ["threadId"]),
+      functionTool("list_projects", "List local and remote projects available for background thread creation. Use a returned projectId with create_thread.", {}, []),
+      functionTool("wait_threads", "Wait for the first of up to eight Codex threads to complete or need attention. Use timeoutMs: 0 for an immediate snapshot. Commentary never wakes the wait. An up-to-date cursor omits previously delivered final text; a timeout includes compact progress for all targets. Per-target failures are returned in errors.", {
+        targets: {
+          type: "array",
+          minItems: 1,
+          maxItems: 8,
+          description: "Threads to wait for. The first target that completes or needs attention wins.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              threadId: { type: "string", minLength: 1, description: "Thread id to wait for." },
+              hostId: { type: "string", minLength: 1, description: "Optional host id returned by create_thread or list_threads." },
+              afterCursor: { type: "string", minLength: 1, description: "Optional cursor returned by an earlier wait." },
+            },
+            required: ["threadId"],
+          },
+        },
+        timeoutMs: { type: "integer", minimum: 0, maximum: 120000, description: "Maximum event-wait time in milliseconds. A bounded snapshot fetch for fresh progress may add latency. Defaults to 120000." },
+      }, ["targets"]),
+      functionTool("set_thread_pinned", "Pin or unpin a Codex thread in the background.", {
+        threadId: { type: "string", description: "Thread id to pin or unpin." },
+        pinned: { type: "boolean", description: "Whether the thread should be pinned." },
+      }, ["threadId", "pinned"]),
+      functionTool("set_thread_archived", "Archive or unarchive a Codex thread in the background.", {
+        threadId: { type: "string", minLength: 1, description: "Thread id to archive or unarchive. Omit to target the calling thread." },
+        hostId: { type: "string", minLength: 1, description: "Optional host id returned by create_thread, list_threads, or wait_threads." },
+        archived: { type: "boolean", description: "Whether the thread should be archived." },
+      }, ["archived"]),
+      functionTool("set_thread_title", "Rename a Codex thread in the background.", {
+        threadId: { type: "string", description: "Thread id to rename. Omit to target the calling thread." },
+        title: { type: "string", description: "New thread title." },
+      }, ["title"]),
+      functionTool("get_handoff_status", "Read status for a handoff_thread operation. The user-facing UI already updates in the original handoff item, so avoid frequent polling. Prefer afterRevision with a 30000-60000 waitMs so the call returns only when progress changes or the timeout expires. Poll once after dispatch, then wait longer/back off; do not repeatedly poll unchanged state or narrate unchanged polls.", {
+        operationId: { type: "string", description: "operationId returned by handoff_thread." },
+        afterRevision: { type: "number", description: "Optional last revision already seen. When provided with waitMs, wait until the operation revision is greater than this value or the timeout expires." },
+        waitMs: { type: "number", description: "Optional maximum milliseconds to wait for a status change, from 0 to 60000." },
+      }, ["operationId"]),
     ],
   };
 }
@@ -777,7 +828,7 @@ function functionTool(name, description, properties, required) {
   };
 }
 
-function codexAppToolHint(tools) {
+export function codexAppToolHint(tools) {
   const codexApp = Array.isArray(tools)
     ? tools.find((tool) => tool?.type === "namespace" && tool.name === "codex_app" && Array.isArray(tool.tools))
     : null;
@@ -793,6 +844,12 @@ function codexAppToolHint(tools) {
     "create_thread",
     "fork_thread",
     "handoff_thread",
+    "list_projects",
+    "wait_threads",
+    "set_thread_pinned",
+    "set_thread_archived",
+    "set_thread_title",
+    "get_handoff_status",
   ].filter((name) => names.has(name));
   if (!threadTools.length) {
     return "";
