@@ -1,3 +1,5 @@
+
+
 > **Latest update:** Kimi K3 is now supported in Codex Desktop through ClinePass, with streaming responses and Codex tool calling.
 
 # Shimex
@@ -632,6 +634,7 @@ npm run shimex -- server restart       # Restart detached backend only
 npm run shimex -- host restart         # Restart host service/backend
 npm run shimex -- server start         # Start the gateway server in the foreground
 npm run shimex -- server stop          # Stop the gateway server
+npm run shimex -- exec [--model <slug>] "prompt"  # Run a prompt via CLI (supports stdin)
 
 # ChatGPT/Codex multi-account management
 npm run shimex -- codex-auth list
