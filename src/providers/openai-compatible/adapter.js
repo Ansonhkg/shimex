@@ -103,7 +103,7 @@ async function streamChatPassThrough(response, upstream, requestedModel) {
 function providerChatBody(route, body) {
   const merged = { ...body };
   if (route.provider.id === "lm-studio" && Array.isArray(merged.messages)) {
-    merged.messages = normalizeLmStudioMessages(merged.messages);
+    merged.messages = normalizeLmStudioMessages(merged.messages, merged.tools);
   }
   const extra = route.providerConfig.options.extra_body || route.providerConfig.options.extraBody;
   if (extra && typeof extra === "object" && !Array.isArray(extra)) {
@@ -122,7 +122,7 @@ function providerChatBody(route, body) {
   return merged;
 }
 
-function normalizeLmStudioMessages(messages) {
+function normalizeLmStudioMessages(messages, tools) {
   const normalized = [];
   for (const message of messages) {
     if (message?.role !== "tool" || !Array.isArray(message.content)) {
@@ -167,10 +167,40 @@ function normalizeLmStudioMessages(messages) {
   if (!systemInstructions.length) {
     return conversation;
   }
+  const leadingSystem = {
+    role: "system",
+    content: systemInstructions.join("\n\n"),
+  };
+  const browserGuidance = lmStudioBrowserGuidance(leadingSystem.content, tools);
+  if (browserGuidance) {
+    leadingSystem.content += `\n\n${browserGuidance}`;
+  }
   return [
-    { role: "system", content: systemInstructions.join("\n\n") },
+    leadingSystem,
     ...conversation,
   ];
+}
+
+function lmStudioBrowserGuidance(systemContent, tools) {
+  const toolNames = new Set(Array.isArray(tools)
+    ? tools.map((tool) => tool?.function?.name).filter(Boolean)
+    : []);
+  if (!toolNames.has("exec_command") || !toolNames.has("js")) {
+    return "";
+  }
+  const skillLine = systemContent
+    .split("\n")
+    .find((line) => line.includes("browser:control-in-app-browser:") && line.includes("(file:"));
+  const skillPath = skillLine?.match(/\(file:\s*([^)]+\/SKILL\.md)\)/)?.[1]?.trim();
+  if (!skillPath) {
+    return "";
+  }
+  return [
+    "LM Studio Browser tool discipline:",
+    `Before any Browser action, first call exec_command to read the complete Browser skill at ${skillPath}, then follow it using the provided js tool.`,
+    "Browser is a skill, not an MCP server. Never call list_mcp_resources for Browser, invent shell commands such as open_url/open_in_browser, or use standalone Playwright.",
+    "Do not merely promise a Browser action; continue with the required tool calls until the requested action is complete.",
+  ].join("\n");
 }
 
 function lmStudioSystemText(content) {
