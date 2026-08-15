@@ -83,7 +83,7 @@ test("teaches LM Studio models to bootstrap the Browser skill", async () => {
     "/v1/responses",
     {
       model: "lm-local",
-      instructions: "Available skills:\n- browser:control-in-app-browser: Control the browser. (file: /data/codex-home/plugins/cache/openai-bundled/browser/1.2.3/skills/control-in-app-browser/SKILL.md)",
+      instructions: "Use /home/codex/Documents/Codex/task/outputs only for user-facing deliverables.\nAvailable skills:\n- browser:control-in-app-browser: Control the browser. (file: /data/codex-home/plugins/cache/openai-bundled/browser/1.2.3/skills/control-in-app-browser/SKILL.md)",
       input: "Open bbc.co.uk in Browser.",
       tools: [
         {
@@ -120,4 +120,19 @@ test("teaches LM Studio models to bootstrap the Browser skill", async () => {
   assert.match(system, /LM Studio Browser tool discipline/);
   assert.match(system, /browser\/1\.2\.3\/skills\/control-in-app-browser\/SKILL\.md/);
   assert.match(system, /Never call list_mcp_resources for Browser/);
+  assert.match(system, /browser\.tabs\.new\(\) without arguments/);
+  assert.match(system, /wrap await tab\.goto\(url\) in try\/catch/);
+  assert.match(system, /goto timeout can occur after the page is already visible/);
+  assert.match(system, /tab\.goto\(\) already waits for navigation/);
+  assert.match(system, /waitForLoadState\(\{ state: "domcontentloaded", timeoutMs: 10000 \}\)/);
+  assert.match(system, /Never open replacement tabs in a retry loop/);
+  assert.match(system, /Never open replacement tabs in a retry loop or fall back to shell Playwright/);
+  assert.match(system, /Never pass a URL to tabs\.new\(\)/);
+  assert.match(system, /await import\("node:fs\/promises"\)/);
+  assert.match(system, /capture and save in the same js call/);
+  assert.match(system, /Never use a top-level static import in js/);
+  assert.match(system, /var fs = await import\("node:fs\/promises"\)/);
+  assert.match(system, /Await every filesystem and image operation/);
+  assert.match(system, /!\[Screenshot\]\(absolute-path\)/);
+  assert.equal(system.match(/LM Studio Browser tool discipline:/g)?.length, 1);
 });
