@@ -182,9 +182,6 @@ function normalizeLmStudioMessages(messages, tools) {
 }
 
 function lmStudioBrowserGuidance(systemContent, tools) {
-  if (systemContent.includes("LM Studio Browser tool discipline:")) {
-    return "";
-  }
   const toolNames = new Set(Array.isArray(tools)
     ? tools.map((tool) => tool?.function?.name).filter(Boolean)
     : []);
@@ -198,23 +195,12 @@ function lmStudioBrowserGuidance(systemContent, tools) {
   if (!skillPath) {
     return "";
   }
-  const outputDirectory = systemContent.match(/Use\s+`?(\/[^\s`]+\/outputs)`?\s+only/)?.[1];
-  const guidance = [
+  return [
     "LM Studio Browser tool discipline:",
     `Before any Browser action, first call exec_command to read the complete Browser skill at ${skillPath}, then follow it using the provided js tool.`,
     "Browser is a skill, not an MCP server. Never call list_mcp_resources for Browser, invent shell commands such as open_url/open_in_browser, or use standalone Playwright.",
-    "For a screenshot, use exactly one browser tab: create it once with browser.tabs.new() without arguments, wrap await tab.goto(url) in try/catch, then capture from that same tab with await tab.screenshot({ fullPage: false }). A goto timeout can occur after the page is already visible, so log it and continue to the screenshot; do not let it abort the capture block.",
-    "tab.goto() already waits for navigation; do not add a load-state wait before a basic screenshot. If a later interaction genuinely needs one, the supported signature is await tab.playwright.waitForLoadState({ state: \"domcontentloaded\", timeoutMs: 10000 }). Reuse the same tab after any timeout. Never open replacement tabs in a retry loop or fall back to shell Playwright.",
-    "Never pass a URL to tabs.new(), call waitForNavigation(), pass a file path to screenshot(), or redeclare a persistent const/let binding. screenshot() returns image bytes; return them with await nodeRepl.emitImage(imageBytes).",
-  ];
-  if (outputDirectory) {
-    guidance.push(
-      `For a user-facing screenshot, capture and save in the same js call: use var bindings, await import(\"node:fs/promises\"), await mkdir(${JSON.stringify(outputDirectory)}, { recursive: true }), capture the bytes, await writeFile() under ${outputDirectory}, then await nodeRepl.emitImage(imageBytes). Verify the PNG exists with exec_command and embed its absolute path in the final response as ![Screenshot](absolute-path).`,
-      "Never use a top-level static import in js. The supported form is exactly: var fs = await import(\"node:fs/promises\");. Await every filesystem and image operation, including await nodeRepl.emitImage(imageBytes). Use reusable var bindings for the tab, screenshot bytes, and path so retries do not fail with duplicate declarations.",
-    );
-  }
-  guidance.push("Do not merely promise a Browser action; continue with the required tool calls until the requested action is complete.");
-  return guidance.join("\n");
+    "Do not merely promise a Browser action; continue with the required tool calls until the requested action is complete.",
+  ].join("\n");
 }
 
 function lmStudioSystemText(content) {
