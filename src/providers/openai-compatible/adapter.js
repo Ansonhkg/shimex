@@ -150,7 +150,41 @@ function normalizeLmStudioMessages(messages) {
       });
     }
   }
-  return normalized;
+
+  const systemInstructions = [];
+  const conversation = [];
+  for (const message of normalized) {
+    if (message?.role === "system") {
+      const text = lmStudioSystemText(message.content);
+      if (text) {
+        systemInstructions.push(text);
+      }
+      continue;
+    }
+    conversation.push(message);
+  }
+
+  if (!systemInstructions.length) {
+    return conversation;
+  }
+  return [
+    { role: "system", content: systemInstructions.join("\n\n") },
+    ...conversation,
+  ];
+}
+
+function lmStudioSystemText(content) {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text.trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function rewriteChatModel(payload, requestedModel) {
