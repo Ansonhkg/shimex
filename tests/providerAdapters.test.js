@@ -1,9 +1,11 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { writeProviderModelCache } from "../src/core/modelCache.js";
 import { handleProviderModelRequest } from "../src/providers/adapter.js";
+import { resolveCursorVariant } from "../src/providers/cursor-composer/adapter.js";
 
 describe("Provider request adapters", () => {
   test("routes Responses requests to OpenAI-compatible chat endpoints", async () => {
@@ -36,6 +38,57 @@ describe("Provider request adapters", () => {
     const payload = JSON.parse(result.body);
     assert.equal(payload.model, "lm-local");
     assert.equal(payload.output[0].content[0].text, "hello back");
+  });
+
+  test("caps Grok tool requests at the configured upstream limit while preserving core tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-tools-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      account: {
+        key: "fake-grok-token",
+        expires_at: "2099-01-01T00:00:00.000Z",
+      },
+    }));
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "grok",
+        endpoint: "https://example.test/v1",
+        options: { auth_path: authPath, max_tools: 3 },
+        models: [modelConfig({ slug: "grok-4-6", upstreamModel: "grok-4.6" })],
+      }),
+      "/v1/responses",
+      {
+        model: "grok-4-6",
+        input: "check the machine",
+        tools: [
+          toolDefinition("unrelated_a"),
+          toolDefinition("exec_command"),
+          toolDefinition("unrelated_b"),
+          toolDefinition("apply_patch"),
+          toolDefinition("write_stdin"),
+        ],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_grok",
+            model: "grok-4.6",
+            choices: [{ message: { role: "assistant", content: "done" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const upstreamBody = JSON.parse(calls[0].init.body);
+    assert.deepEqual(upstreamBody.tools.map((tool) => tool.function.name), [
+      "exec_command",
+      "apply_patch",
+      "write_stdin",
+    ]);
   });
 
   test("normalizes Responses tool parameter schemas for OpenAI-compatible chat endpoints", async () => {
@@ -293,8 +346,8 @@ describe("Provider request adapters", () => {
           endpoint: "https://cli-chat-proxy.grok.com/v1",
           auth: { type: "external-grok-login" },
           models: [modelConfig({
-            slug: "grok-4-5",
-            upstreamModel: "grok-4.5",
+            slug: "grok-4-6",
+            upstreamModel: "grok-4.6",
             inputModalities: ["text", "image"],
           })],
           options: {
@@ -306,7 +359,7 @@ describe("Provider request adapters", () => {
       },
       "/v1/responses",
       {
-        model: "grok-4-5",
+        model: "grok-4-6",
         input: "hello",
         stream: false,
       },
@@ -316,7 +369,7 @@ describe("Provider request adapters", () => {
           return jsonResponse({
             id: "chatcmpl_grok",
             created: 123,
-            model: "grok-4.5",
+            model: "grok-4.6",
             choices: [{ message: { role: "assistant", content: "hello from grok" } }],
             usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
           });
@@ -329,9 +382,9 @@ describe("Provider request adapters", () => {
     assert.equal(calls[0].url, "https://cli-chat-proxy.grok.com/v1/chat/completions");
     assert.equal(calls[0].init.headers.authorization, "Bearer grok-session-token");
     assert.equal(calls[0].init.headers["x-grok-client-version"], "0.2.114");
-    assert.equal(JSON.parse(calls[0].init.body).model, "grok-4.5");
+    assert.equal(JSON.parse(calls[0].init.body).model, "grok-4.6");
     const payload = JSON.parse(result.body);
-    assert.equal(payload.model, "grok-4-5");
+    assert.equal(payload.model, "grok-4-6");
     assert.equal(payload.output[0].content[0].text, "hello from grok");
   });
 
@@ -354,8 +407,8 @@ describe("Provider request adapters", () => {
           endpoint: "https://cli-chat-proxy.grok.com/v1",
           auth: { type: "external-grok-login" },
           models: [modelConfig({
-            slug: "grok-4-5",
-            upstreamModel: "grok-4.5",
+            slug: "grok-4-6",
+            upstreamModel: "grok-4.6",
             inputModalities: ["text", "image"],
           })],
           options: {
@@ -367,7 +420,7 @@ describe("Provider request adapters", () => {
       },
       "/v1/responses",
       {
-        model: "grok-4-5",
+        model: "grok-4-6",
         input: [{
           role: "user",
           content: [
@@ -383,7 +436,7 @@ describe("Provider request adapters", () => {
           return jsonResponse({
             id: "chatcmpl_grok_img",
             created: 123,
-            model: "grok-4.5",
+            model: "grok-4.6",
             choices: [{ message: { role: "assistant", content: "a small image" } }],
           });
         },
@@ -990,6 +1043,7 @@ describe("Provider request adapters", () => {
       testConfig({
         id: "cursor-composer",
         models: [],
+        options: { show_without_auth: true },
       }),
       "/v1/responses",
       { model: "composer-2-5", input: "hello", stream: false },
@@ -1009,11 +1063,65 @@ describe("Provider request adapters", () => {
     assert.equal(payload.output[0].content[0].text, "cursor done");
   });
 
+  test("maps Cursor Effort and Fast controls to advertised Cursor Agent variants", async () => {
+    const runtimeHome = await mkdtemp(join(tmpdir(), "shimex-cursor-variants-"));
+    const variants = {
+      default: {},
+      reasoning: {
+        low: { standard: "gpt-5.5-low", fast: "gpt-5.5-low-fast" },
+        high: { standard: "gpt-5.5-high", fast: "gpt-5.5-high-fast" },
+      },
+    };
+    const provider = {
+      id: "cursor-composer",
+      enabled: true,
+      endpoint: "",
+      auth: null,
+      models: [],
+      options: { show_without_auth: true },
+    };
+    const config = { runtime: { home: runtimeHome }, providers: [provider] };
+    await writeProviderModelCache(config, provider, [{
+      slug: "cursor-gpt-5-5",
+      displayName: "GPT-5.5",
+      upstreamModel: "gpt-5.5-high",
+      contextWindow: 128000,
+      inputModalities: ["text"],
+      reasoningLevel: "high",
+      supportedReasoningLevels: [{ effort: "low" }, { effort: "high" }],
+      reasoningLevelsKnown: true,
+      additionalSpeedTiers: ["fast"],
+      variantMap: variants,
+    }]);
+    const result = await handleProviderModelRequest(
+      config,
+      "/v1/responses",
+      { model: "cursor-gpt-5-5", input: "hello", reasoning: { effort: "low" }, service_tier: "priority" },
+      {
+        runCursorAgent: async function* (_prompt, model) {
+          assert.equal(model, "gpt-5.5-low-fast");
+          yield { type: "completed", text: "cursor done" };
+        },
+      },
+    );
+    assert.equal(result.status, 200);
+  });
+
+  test("rejects Cursor effort and Fast combinations that Cursor did not advertise", async () => {
+    const result = resolveCursorVariant({
+      slug: "cursor-gpt-5-5",
+      upstreamModel: "gpt-5.5-high",
+      variantMap: { default: {}, reasoning: { high: { standard: "gpt-5.5-high" } } },
+    }, { reasoning_effort: "high", service_tier: "priority" });
+    assert.match(result.error, /does not offer Cursor Fast/);
+  });
+
   test("returns a clean Cursor Composer error when the bridge fails", async () => {
     const result = await handleProviderModelRequest(
       testConfig({
         id: "cursor-composer",
         models: [],
+        options: { show_without_auth: true },
       }),
       "/v1/responses",
       { model: "composer-2-5", input: "hello", stream: false },
@@ -1026,6 +1134,31 @@ describe("Provider request adapters", () => {
 
     assert.equal(result.status, 502);
     assert.match(JSON.parse(result.body).error.message, /cursor-agent missing/);
+  });
+
+  test("invokes the configured Cursor Agent binary for an authenticated request", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-cursor-agent-"));
+    const agent = join(root, "cursor-agent");
+    await writeFile(agent, [
+      "#!/bin/sh",
+      "if [ \"$1\" = status ]; then exit 0; fi",
+      "printf '%s\\n' '{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"cursor bridge\"}]}}'",
+      "printf '%s\\n' '{\"type\":\"result\",\"result\":\"cursor bridge\"}'",
+    ].join("\n"));
+    await chmod(agent, 0o755);
+
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "cursor-composer",
+        models: [],
+        options: { cursor_agent_bin: agent },
+      }),
+      "/v1/responses",
+      { model: "composer-2-5", input: "hello", stream: false },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(JSON.parse(result.body).output[0].content[0].text, "cursor bridge");
   });
 
   test("auto-router rewrites to the cheapest viable configured candidate", async () => {
@@ -1212,13 +1345,14 @@ function testConfig(provider) {
   };
 }
 
-function modelConfig({ slug, upstreamModel, inputModalities = ["text"] }) {
+function modelConfig({ slug, upstreamModel, inputModalities = ["text"], ...extra }) {
   return {
     slug,
     displayName: slug,
     upstreamModel,
     contextWindow: 128000,
     inputModalities,
+    ...extra,
   };
 }
 
@@ -1234,6 +1368,15 @@ function loadedCodexAppTool() {
       },
       required: ["threadId"],
     },
+  };
+}
+
+function toolDefinition(name) {
+  return {
+    type: "function",
+    name,
+    description: `${name} tool`,
+    parameters: { type: "object", properties: {} },
   };
 }
 

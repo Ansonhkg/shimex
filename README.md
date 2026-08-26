@@ -1,6 +1,4 @@
-
-
-> **Latest update:** Kimi K3 is now supported in Codex Desktop through ClinePass, with streaming responses and Codex tool calling.
+> **Latest update:** Grok 4.6 is now supported in Codex Desktop through the authenticated Grok CLI session, including remote Shimex clients; Kimi K3 is available through ClinePass with streaming responses and Codex tool calling.
 
 # Shimex
 
@@ -225,9 +223,9 @@ Streaming is supported for all combinations. Non-streaming upstream APIs (Anthro
 | `chatgpt-codex` | external-session | Codex login session | Cached/static | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `cline-pass` | external-session | External Cline auth | Dynamic (`/recommended-models`) | ✅ | ✅ | ✅ | ✅ | Per-model |
 | `cloudflare-workers-ai` | byok | `CLOUDFLARE_AUTH_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only configs) |
-| `cursor-composer` | external-cli-session | `cursor-agent status` | Static | ✅ | ✅ | ✅ | ❌ | ❌ (text-only bridge) |
+| `cursor-composer` | external-cli-session | Cursor Agent browser login (`agent status`) | Cached `cursor-agent models`, auth-gated | ✅ | ✅ | ✅ | ❌ | ❌ (text-only bridge) |
 | `deepseek` | byok | `DEEPSEEK_API_KEY` | Configured | ✅ | ✅ | ✅ (buffered) | ✅ | ❌ (text-only models) |
-| `grok` | external-session | `grok login` / `~/.grok/auth.json` | Local CLI model cache | ✅ | ✅ | ✅ | ✅ | ✅ (Grok 4.5) |
+| `grok` | external-session | `grok login` / `~/.grok/auth.json` | Local CLI model cache | ✅ | ✅ | ✅ | ✅ | ✅ (Grok 4.6) |
 | `lm-studio` | local | None | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only) |
 | `ollama` | local | None | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | ❌ (text-only) |
 | `openai-compatible` | byok | Env or header | Configured + `/models` refresh | ✅ | ✅ | ✅ | ✅ | Per-model |
@@ -423,6 +421,7 @@ Notes:
 - Pairing codes expire and are one-time.
 - Client desktop setup still needs the original Codex.app installed once on the client so Shimex can create the managed app copy.
 - If Codex.app is missing, the client can still use the host as an OpenAI-compatible endpoint with the client token.
+- Model requests always use the host's current catalog. To refresh the remote Codex picker after adding a model, run `shimex client sync` from a client repository checkout, or `~/.shimex/sync-model-catalog.sh` on a bootstrap-only client, then fully quit and reopen `Shimex.app`.
 - See `workflows/host-client-pairing.md`.
 
 ## Configuration
@@ -465,6 +464,60 @@ or the shell). Example:
     type: env
     name: OPENAI_COMPATIBLE_API_KEY
 ```
+
+### Cursor subscription
+
+Shimex uses the local Cursor Agent CLI as a session bridge. It does not read or
+copy credentials from `~/.cursor`; Cursor keeps the browser-login session and
+Shimex only starts the CLI for each request. Cursor's headless CLI supports
+streamed JSON output, which is what the bridge consumes.
+
+Once the Cursor Agent CLI is installed, open the Shimex admin panel, choose
+`Cursor`, and click `Sign in with Cursor`. The button starts Cursor's own browser
+login on the Shimex host, then refreshes the model catalog when the session is
+connected. The login action is intentionally host-local because it opens a
+browser and stores the session through Cursor.
+
+Install the CLI and log in on the same host that runs Shimex:
+
+```bash
+cursor-agent login
+cursor-agent status
+```
+
+If `cursor-agent` is not installed, use Cursor's official installer, but first
+check whether another tool owns the generic `agent` command. Cursor currently
+installs both names, so on a machine with an existing `agent` executable use a
+separate Cursor installation path or set `CURSOR_AGENT_BIN` to the Cursor CLI;
+do not overwrite the other tool's command.
+
+The provider is already present in `shimex.yml`:
+
+```yaml
+- id: cursor-composer
+  enabled: true
+  auth:
+    type: external-cli-login
+    command: cursor-agent status
+  models:
+    refresh: on_start
+```
+
+Shimex exposes the authenticated account models returned by `cursor-agent models`
+(including `composer-2-5`) after Cursor Agent status succeeds. The list is cached
+under Shimex's runtime home, refreshed on host start, and can be refreshed from
+the Cursor admin panel. Cursor Agent encodes reasoning and Fast choices in its
+model IDs; Shimex collapses those into model families and only advertises
+combinations the CLI actually listed. Dynamic Cursor entries are conservatively advertised as
+text-only until the bridge can validate richer capabilities. If the Cursor CLI is
+installed at a non-standard path, set `CURSOR_AGENT_BIN` in the repo-root `.env`
+(or use `cursor_agent_bin` on the provider). This is useful on machines where
+another tool already owns the generic `agent` command. Do not replace that other
+executable with Cursor's installer; point Shimex at the Cursor binary instead.
+
+The bridge is text-only and delegates file/shell work to Cursor Agent's own
+headless tools. Images and OpenAI function tools are rejected or omitted rather
+than being claimed as supported.
 
 ### Provider Auth Types
 

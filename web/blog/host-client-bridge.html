@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Use Grok 4.5 from a Remote Codex Desktop Client | Shimex</title>
-  <meta name="description" content="Use Grok 4.5 in Codex Desktop from another Tailscale machine. Shimex keeps the host profile private and gives clients a scoped bridge token.">
+  <title>Use Grok 4.6 from a Remote Codex Desktop Client | Shimex</title>
+  <meta name="description" content="Use Grok 4.6 in Codex Desktop from another Tailscale machine. Shimex keeps the host profile private and gives clients a scoped bridge token.">
   <meta name="application-name" content="Shimex">
   <meta name="author" content="anson">
   <meta name="robots" content="index,follow,max-image-preview:large">
@@ -15,18 +15,18 @@
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://shimex.xyz/blog/host-client-bridge.html">
-  <meta property="og:title" content="Use Grok 4.5 from a Remote Codex Desktop Client">
-  <meta property="og:description" content="Bridge a Tailscale client to a Shimex host and use the host's Grok 4.5 profile without copying provider secrets.">
+  <meta property="og:title" content="Use Grok 4.6 from a Remote Codex Desktop Client">
+  <meta property="og:description" content="Bridge a Tailscale client to a Shimex host and use the host's Grok 4.6 profile without copying provider secrets.">
   <meta property="og:image" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:alt" content="Shimex host and remote client connected by a secure model bridge">
   <meta property="article:published_time" content="2026-07-30T00:00:00+01:00">
-  <meta property="article:modified_time" content="2026-07-30T00:00:00+01:00">
+  <meta property="article:modified_time" content="2026-08-12T00:00:00+01:00">
   <meta property="article:section" content="Guides">
-  <meta property="article:tag" content="Grok 4.5">
+  <meta property="article:tag" content="Grok 4.6">
   <meta property="article:tag" content="Tailscale">
   <meta property="article:tag" content="Codex Desktop">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Use Grok 4.5 from a Remote Codex Desktop Client">
+  <meta name="twitter:title" content="Use Grok 4.6 from a Remote Codex Desktop Client">
   <meta name="twitter:description" content="A practical Shimex host/client bridge for using host profiles from a remote Tailscale machine.">
   <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
 
@@ -37,17 +37,17 @@
       {
         "@type": "BlogPosting",
         "@id": "https://shimex.xyz/blog/host-client-bridge.html#article",
-        "headline": "Use Grok 4.5 from a Remote Codex Desktop Client",
-        "description": "Use Grok 4.5 in Codex Desktop from another Tailscale machine through a scoped Shimex host/client bridge.",
+        "headline": "Use Grok 4.6 from a Remote Codex Desktop Client",
+        "description": "Use Grok 4.6 in Codex Desktop from another Tailscale machine through a scoped Shimex host/client bridge.",
         "url": "https://shimex.xyz/blog/host-client-bridge.html",
         "datePublished": "2026-07-30T00:00:00+01:00",
-        "dateModified": "2026-07-30T00:00:00+01:00",
+        "dateModified": "2026-08-12T00:00:00+01:00",
         "author": { "@id": "https://anson.sh/#person" },
         "publisher": { "@id": "https://anson.sh/#person" },
         "image": "https://shimex.xyz/social-card.png",
         "isPartOf": { "@id": "https://shimex.xyz/#website" },
         "mainEntityOfPage": { "@id": "https://shimex.xyz/blog/host-client-bridge.html" },
-        "keywords": ["Grok 4.5", "Codex Desktop", "Tailscale", "remote model gateway", "Shimex host client"]
+        "keywords": ["Grok 4.6", "Codex Desktop", "Tailscale", "remote model gateway", "Shimex host client"]
       },
       {
         "@type": "BreadcrumbList",
@@ -61,14 +61,14 @@
       {
         "@type": "HowTo",
         "@id": "https://shimex.xyz/blog/host-client-bridge.html#how-to",
-        "name": "Use a host's Grok 4.5 profile from a remote Tailscale client",
+        "name": "Use a host's Grok 4.6 profile from a remote Tailscale client",
         "description": "Pair a remote Shimex client to a host without copying provider credentials.",
         "totalTime": "PT10M",
         "step": [
           { "@type": "HowToStep", "name": "Start the host", "text": "Run shimex host up on the machine that has the Grok session." },
           { "@type": "HowToStep", "name": "Create an invite", "text": "Open the admin page and choose Create client command, or run shimex host code." },
           { "@type": "HowToStep", "name": "Run the client setup", "text": "Run the generated curl setup.sh command on the remote Tailscale machine." },
-          { "@type": "HowToStep", "name": "Choose Grok 4.5", "text": "Open the managed Shimex app on the client and select Grok 4.5 from the model picker." }
+          { "@type": "HowToStep", "name": "Choose Grok 4.6", "text": "Open the managed Shimex app on the client and select Grok 4.6 from the model picker." }
         ]
       },
       {
@@ -170,23 +170,23 @@
 
     <main>
       <div class="eyebrow">Shimex guide · Remote workflows</div>
-      <h1>Use Grok 4.5 from a remote Codex Desktop client.</h1>
+      <h1>Use Grok 4.6 from a remote Codex Desktop client.</h1>
       <p class="dek">Keep the Grok profile on one trusted Shimex host, then use it from another machine over your private Tailscale network.</p>
-      <div class="byline"><time datetime="2026-07-30">Updated July 30, 2026</time><span class="dot"></span><span>6 min read</span></div>
+      <div class="byline"><time datetime="2026-08-12">Updated August 12, 2026</time><span class="dot"></span><span>6 min read</span></div>
 
       <figure class="hero-art">
-        <img src="../assets/shimex-bridge.svg" alt="Shimex host keeps Grok 4.5 credentials while a remote Tailscale client uses the model through a bridge" width="1080" height="608">
+        <img src="../assets/shimex-bridge.svg" alt="Shimex host keeps Grok 4.6 credentials while a remote Tailscale client uses the model through a bridge" width="1080" height="608">
         <figcaption>The host keeps the profile. The remote client receives a scoped bridge token, not the provider credentials.</figcaption>
       </figure>
 
       <article>
-        <p>Shimex host/client bridging lets a remote machine use the models already configured on your host. If the host has a working Grok 4.5 session, a client on the same Tailscale network can select <code>Grok 4.5</code> in its managed Codex Desktop app without logging into Grok or copying any API keys.</p>
+        <p>Shimex host/client bridging lets a remote machine use the models already configured on your host. If the host has a working Grok 4.6 session, a client on the same Tailscale network can select <code>Grok 4.6</code> in its managed Codex Desktop app without logging into Grok or copying any API keys.</p>
 
         <div class="callout"><strong>The short version:</strong> start the persistent host, create a one-time client command, run it on the Tailscale client, and open the managed Shimex app. The client routes model traffic to the host over a revocable token.</div>
 
         <h2 id="what-you-get">What you get</h2>
         <ul>
-          <li>Grok 4.5 appears in the remote client's Codex model picker when the host session is valid.</li>
+          <li>Grok 4.6 appears in the remote client's Codex model picker when the host session is valid.</li>
           <li>The host keeps the Grok, Codex, and Cline sessions and provider keys.</li>
           <li>Pairing uses an expiring one-time code, followed by a revocable client token.</li>
           <li>The host gateway can stay online even when the host's managed Shimex.app is closed.</li>
@@ -223,9 +223,9 @@ shimex host up</code></pre>
 
         <div class="step">
           <div class="step-number">04 / CLIENT</div>
-          <h3>Open the managed app and choose Grok 4.5</h3>
+          <h3>Open the managed app and choose Grok 4.6</h3>
           <pre><code>shimex app start</code></pre>
-          <p>Select <code>Grok 4.5</code> in the model picker. Requests now travel through the host bridge while the host's local Grok session handles upstream authentication.</p>
+          <p>Select <code>Grok 4.6</code> in the model picker. Requests now travel through the host bridge while the host's local Grok session handles upstream authentication.</p>
         </div>
 
         <h2 id="security">What crosses the bridge?</h2>
@@ -239,12 +239,17 @@ shimex host revoke-all</code></pre>
         <h2 id="troubleshooting">Troubleshooting</h2>
         <h3>The client gets HTTP 401</h3>
         <p>The saved client token may have been revoked or expired. Generate a fresh invite on the host and rerun the command. The setup script validates a saved token and automatically re-pairs when a fresh code is present.</p>
-        <h3>Grok 4.5 is not in the picker</h3>
-        <p>Confirm that the host can see its Grok session and that the host catalog has refreshed. Restart the persistent host if configuration changed, then restart the managed client app:</p>
-        <pre><code>shimex host down
-shimex host up
-shimex app stop
-shimex app start</code></pre>
+        <h3>Grok 4.6 is not in the picker</h3>
+        <p>Confirm that the host can see its Grok session and restart the persistent host if configuration changed. Then refresh the cached picker catalog on the remote client and restart its managed app:</p>
+        <pre><code># host
+shimex host restart
+
+# remote client with the Shimex repo
+shimex client sync
+
+# bootstrap-only remote client
+~/.shimex/sync-model-catalog.sh</code></pre>
+        <p>Fully quit and reopen <code>Shimex.app</code> after syncing so Codex Desktop reloads the local catalog.</p>
         <h3>The client cannot reach the host</h3>
         <p>Check that both machines are connected to Tailscale, the host advertises its Tailscale hostname or IP, and the gateway is bound to a reachable interface. The host's local admin page is not the same thing as the address the client should use.</p>
 

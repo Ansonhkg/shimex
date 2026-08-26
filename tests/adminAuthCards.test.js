@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { codexAuthsCard, codexAuthsRuntimeHelpers } from "../src/admin/codexAuthsCard.js";
 import { clineAuthsCard, clineAuthsRuntimeHelpers } from "../src/admin/clineAuthsCard.js";
 import { grokAuthsCard, grokAuthsRuntimeHelpers } from "../src/admin/grokAuthsCard.js";
+import { cursorAuthsCard, cursorAuthsRuntimeHelpers } from "../src/admin/cursorAuthsCard.js";
 import { adminPage } from "../src/admin/page.js";
 
 describe("admin auth card markup", () => {
@@ -54,6 +55,21 @@ describe("admin auth card markup", () => {
     assert.match(html, /id="grok-auths-refresh"/);
     assert.match(html, /id="grok-auths-open-billing"/);
     assert.doesNotMatch(html, /<h2 id="grok-auths-title"/);
+  });
+
+  test("cursorAuthsCard provides a browser login action", () => {
+    const html = cursorAuthsCard();
+    assert.match(html, /class="auth-page span-12"/);
+    assert.match(html, /class="auth-shell"/);
+    assert.match(html, /id="cursor-auths-panel"/);
+    assert.match(html, /id="cursor-auths-title"/);
+    assert.match(html, /id="cursor-auths-rows"/);
+    assert.match(html, /id="cursor-auths-login"/);
+    assert.match(html, /Sign in with Cursor/);
+    assert.match(html, /Cursor Agent/);
+    assert.match(html, /credentials stay in Cursor/);
+    assert.match(html, /id="cursor-auths-refresh"/);
+    assert.doesNotMatch(html, /<table/);
   });
 
   test("admin page CSS defines shared auth shell layout", () => {
@@ -138,5 +154,21 @@ describe("admin auth card runtime helpers", () => {
       assert.ok(js.includes(needle), `missing ${needle}`);
     }
     assert.match(js, /class="auth-profile"/);
+  });
+
+  test("cursor runtime defines browser login and polling helpers", () => {
+    const js = cursorAuthsRuntimeHelpers();
+    for (const needle of [
+      "function initCursorAuths()",
+      "async function loadCursorAuths()",
+      "async function startCursorLogin()",
+      "async function pollCursorLogin(",
+      "/api/cursor-auth",
+      "/api/cursor-auth/login/",
+      "Sign in with Cursor",
+      "Finish the Cursor login in your browser",
+    ]) {
+      assert.ok(js.includes(needle), `missing ${needle}`);
+    }
   });
 });

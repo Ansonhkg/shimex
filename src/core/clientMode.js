@@ -1,4 +1,4 @@
-import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
@@ -271,6 +271,29 @@ export async function fetchHostCatalog(session, options = {}) {
     throw new Error(payload?.error?.message || payload?.error || `Host catalog failed with HTTP ${response.status}`);
   }
   return payload;
+}
+
+export async function syncClientCatalog(config, options = {}) {
+  const session = options.session || await readClientSession(config);
+  if (!session) {
+    throw new Error("No paired client session. Run `shimex pair <code>` first.");
+  }
+  const catalog = options.catalog || await fetchHostCatalog(session, options);
+  if (!Array.isArray(catalog?.models) || !catalog.models.length) {
+    throw new Error("Host returned an empty Codex model catalog.");
+  }
+  const paths = resolveCodexPaths(remoteGatewayConfig(config, session));
+  await mkdir(dirname(paths.catalogPath), { recursive: true });
+  const temporaryPath = `${paths.catalogPath}.tmp-${process.pid}`;
+  await writeFile(temporaryPath, `${JSON.stringify(catalog, null, 2)}\n`, { mode: 0o600 });
+  await rename(temporaryPath, paths.catalogPath);
+  return {
+    ok: true,
+    gatewayUrl: session.gatewayUrl,
+    catalogPath: paths.catalogPath,
+    modelCount: catalog.models.length,
+    models: catalog.models.map((model) => model.slug),
+  };
 }
 
 export function remoteGatewayConfig(config, session) {

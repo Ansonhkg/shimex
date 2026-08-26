@@ -9,8 +9,25 @@ import {
   responsePayloadToEvents,
   responsesToChat,
   unwrapOpenAICompatiblePayload,
-} from "../openai-compatible/translate.js";import { resolveGrokAuth } from "./auth.js";
+} from "../openai-compatible/translate.js";
+import { resolveGrokAuth } from "./auth.js";
 import { DEFAULT_GROK_ENDPOINT, resolveGrokClientVersion } from "./index.js";
+
+const DEFAULT_GROK_MAX_TOOLS = 350;
+const PRIORITY_TOOL_NAMES = [
+  "exec_command",
+  "write_stdin",
+  "apply_patch",
+  "view_image",
+  "js",
+  "update_plan",
+  "request_user_input",
+  "read_thread_terminal",
+  "load_workspace_dependencies",
+  "list_mcp_resources",
+  "list_mcp_resource_templates",
+  "read_mcp_resource",
+];
 
 export async function handleGrokRequest(route, pathname, body, options = {}) {
   const unsupported = validateModelInput(route, body);
@@ -32,14 +49,15 @@ export async function handleGrokRequest(route, pathname, body, options = {}) {
   const endpoint = String(route.providerConfig.endpoint || DEFAULT_GROK_ENDPOINT).replace(/\/+$/, "");
   const clientVersion = await resolveGrokClientVersion(route.providerConfig, options);
   if (pathname === "/v1/chat/completions") {
-    return await postChat(route, endpoint, auth, clientVersion, { ...body, model: route.model.upstreamModel }, {
+    const chatBody = limitGrokTools({ ...body, model: route.model.upstreamModel }, route);
+    return await postChat(route, endpoint, auth, clientVersion, chatBody, {
       asResponses: false,
       requestedModel: route.model.slug,
       fetch: options.fetch || fetch,
     });
   }
   if (pathname === "/v1/responses" || pathname === "/v1/responses/compact") {
-    const chatBody = responsesToChat(body, route.model.upstreamModel);
+    const chatBody = limitGrokTools(responsesToChat(body, route.model.upstreamModel), route);
     return await postChat(route, endpoint, auth, clientVersion, chatBody, {
       asResponses: true,
       requestedModel: route.model.slug,
@@ -48,6 +66,52 @@ export async function handleGrokRequest(route, pathname, body, options = {}) {
     });
   }
   return null;
+}
+
+function limitGrokTools(body, route) {
+  if (!Array.isArray(body.tools)) {
+    return body;
+  }
+  const configured = route.providerConfig.options?.max_tools ?? route.providerConfig.options?.maxTools;
+  const maxTools = Number.isInteger(Number(configured)) && Number(configured) > 0
+    ? Number(configured)
+    : DEFAULT_GROK_MAX_TOOLS;
+  if (body.tools.length <= maxTools) {
+    return body;
+  }
+
+  const requestedTool = toolChoiceName(body.tool_choice);
+  const priority = new Set([...PRIORITY_TOOL_NAMES, requestedTool].filter(Boolean));
+  const selected = [];
+  const seen = new Set();
+  const add = (tool) => {
+    if (selected.length >= maxTools || seen.has(tool)) {
+      return;
+    }
+    seen.add(tool);
+    selected.push(tool);
+  };
+
+  for (const tool of body.tools) {
+    if (priority.has(toolName(tool))) {
+      add(tool);
+    }
+  }
+  for (const tool of body.tools) {
+    add(tool);
+  }
+  return { ...body, tools: selected };
+}
+
+function toolName(tool) {
+  return String(tool?.function?.name || tool?.name || "");
+}
+
+function toolChoiceName(toolChoice) {
+  if (!toolChoice || typeof toolChoice !== "object") {
+    return "";
+  }
+  return String(toolChoice.function?.name || toolChoice.name || "");
 }
 
 async function postChat(route, endpoint, auth, clientVersion, body, options) {

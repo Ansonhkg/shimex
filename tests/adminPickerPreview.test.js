@@ -18,11 +18,19 @@ describe("admin model picker preview", () => {
   test("uses the same display naming as the Codex catalog", () => {
     assert.equal(
       codexDisplayName({
-        displayName: "Grok 4.5",
+        displayName: "Grok 4.6",
         providerDisplayName: "Grok",
         providerId: "grok",
       }),
-      "Grok: Grok 4.5",
+      "Grok: Grok 4.6",
+    );
+    assert.equal(
+      codexDisplayName({
+        displayName: "Kimi K3",
+        providerDisplayName: "ClinePass",
+        providerId: "cline-pass",
+      }),
+      "Kimi K3",
     );
   });
 });

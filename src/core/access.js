@@ -144,6 +144,7 @@ function isModelUsePath(path, method) {
 function isCatalogPath(path, method) {
   return method === "GET" && (
     path === "/codex/model-catalog.json"
+    || path === "/llms.txt"
     || path === "/v1/models"
     || path === "/api/models"
     || path === "/api/status"

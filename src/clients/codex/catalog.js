@@ -13,9 +13,11 @@ export function codexCatalogEntry(model, index = 0) {
   const context = model.contextWindow || 128000;
   const inputModalities = codexInputModalities(model.inputModalities);
   const supportsImages = inputModalities.includes("image");
-  const supportedReasoningLevels = model.supportedReasoningLevels?.length
+  const supportedReasoningLevels = model.reasoningLevelsKnown
     ? model.supportedReasoningLevels
-    : defaultReasoningLevels();
+    : model.supportedReasoningLevels?.length
+      ? model.supportedReasoningLevels
+      : defaultReasoningLevels();
   const displayName = codexDisplayName(model);
   const providerName = model.providerDisplayName || model.providerId || "Shimex";
   const webSearchToolType = WEB_SEARCH_TOOL_TYPES.has(model.webSearchToolType) ? model.webSearchToolType : null;
@@ -84,6 +86,9 @@ export function codexDisplayName(model) {
   }
   const providerName = model.providerDisplayName || model.providerId;
   if (["chatgpt-codex", "cline-pass"].includes(model.providerId) && model.profile && model.displayName.includes(":")) {
+    return model.displayName;
+  }
+  if (model.providerId === "cline-pass") {
     return model.displayName;
   }
   if (!providerName) {

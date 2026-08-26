@@ -12,10 +12,12 @@ import { handleProviderModelRequest } from "../providers/adapter.js";
 import { createCodexAuthRoutes } from "./codexAuthRoutes.js";
 import { createClineAuthRoutes } from "./clineAuthRoutes.js";
 import { createGrokAuthRoutes } from "./grokAuthRoutes.js";
+import { createCursorAuthRoutes } from "./cursorAuthRoutes.js";
 import { createPairingRoutes } from "./pairingRoutes.js";
 import { authorizeRequest, resolveAccessContext } from "../core/access.js";
 import { setupScriptResponse } from "./joinSetup.js";
 import { createDesktopBundleStream, getDesktopBundleInfo } from "./desktopBundle.js";
+import { generateLlmsTxt } from "./llmsTxt.js";
 import {
   listShimexProviderSections,
   readShimexConfigFile,
@@ -31,6 +33,7 @@ export async function createServer(config) {
   const codexAuthRoutes = createCodexAuthRoutes(config);
   const clineAuthRoutes = createClineAuthRoutes(config);
   const grokAuthRoutes = createGrokAuthRoutes(config);
+  const cursorAuthRoutes = createCursorAuthRoutes(config);
   const pairingRoutes = createPairingRoutes(config);
   const server = createHttpServer(async (request, response) => {
     try {
@@ -46,6 +49,7 @@ export async function createServer(config) {
         codexAuthRoutes,
         clineAuthRoutes,
         grokAuthRoutes,
+        cursorAuthRoutes,
         pairingRoutes,
         access,
         auth,
@@ -77,6 +81,9 @@ async function routeRequest(config, request, url, control = {}) {
   }
   if (method === "GET" && pathname === "/health") {
     return json({ ok: true, service: "shimex" });
+  }
+  if (method === "GET" && pathname === "/llms.txt") {
+    return text(generateLlmsTxt(await discoverModels(config), config));
   }
   if (method === "GET" && pathname === "/join") {
     return html(joinPage({
@@ -289,6 +296,13 @@ async function routeRequest(config, request, url, control = {}) {
     const result = await control.grokAuthRoutes?.route(request, url);
     if (result) return result;
   }
+  if (pathname === "/api/cursor-auth" || pathname.startsWith("/api/cursor-auth/")) {
+    if (method === "POST" && !control.access?.local) {
+      return json({ error: { message: "Cursor browser login must be started on the Shimex host.", type: "shimex_local_only" } }, { status: 403 });
+    }
+    const result = await control.cursorAuthRoutes?.route(request, url);
+    if (result) return result;
+  }
   if (method === "GET" && pathname === "/admin/codex-auth/device") {
     const id = url.searchParams.get("id");
     if (!id) {
@@ -364,6 +378,14 @@ function html(value) {
     status: 200,
     body: value,
     headers: { "content-type": "text/html; charset=utf-8" },
+  };
+}
+
+function text(value) {
+  return {
+    status: 200,
+    body: value,
+    headers: { "content-type": "text/plain; charset=utf-8" },
   };
 }
 

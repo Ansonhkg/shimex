@@ -1,6 +1,7 @@
 import { codexAuthsCard, codexAuthsRuntimeHelpers } from "./codexAuthsCard.js";
 import { clineAuthsCard, clineAuthsRuntimeHelpers } from "./clineAuthsCard.js";
 import { grokAuthsCard, grokAuthsRuntimeHelpers } from "./grokAuthsCard.js";
+import { cursorAuthsCard, cursorAuthsRuntimeHelpers } from "./cursorAuthsCard.js";
 import { pairingCard, pairingRuntimeHelpers } from "./pairingCard.js";
 import { providerConfigCard, providerConfigRuntimeHelpers } from "./providerConfigCard.js";
 import { providerNavIcon } from "./providerIcons.js";
@@ -1928,6 +1929,7 @@ function styles() {
 
 function icon(name) {
   const icons = {
+    cursor: '<svg class="provider-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8 15.5 16 8.5"></path><path d="M8.5 8.5h7v7"></path></svg>',
     overview: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>',
     models: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><circle cx="18.5" cy="17" r="2"></circle></svg>',
     pairing: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 14.5 7 16a4 4 0 1 0 5.7 5.7l1.8-1.8"></path><path d="m15.5 9.5 1.5-1.5A4 4 0 1 0 11.3 2.3L9.5 4.1"></path><path d="m9 15 6-6"></path></svg>',
@@ -1956,6 +1958,7 @@ function shell() {
           <a class="nav-item" href="#pairing" data-view="pairing" title="Pairing" aria-label="Pairing"><span class="nav-icon">${icon("pairing")}</span><span class="nav-label">Pairing</span></a>
           <div class="nav-separator">Provider</div>
           <a class="nav-item" href="#codex" data-view="codex" title="Codex profiles" aria-label="Codex profiles"><span class="nav-icon">${icon("codex")}</span><span class="nav-label">Codex</span></a>
+          <a class="nav-item" href="#cursor" data-view="cursor" title="Cursor subscription" aria-label="Cursor subscription"><span class="nav-icon">${icon("cursor")}</span><span class="nav-label">Cursor</span></a>
           <a class="nav-item" href="#grok" data-view="grok" title="Grok session" aria-label="Grok session"><span class="nav-icon">${icon("grok")}</span><span class="nav-label">Grok</span></a>
           <a class="nav-item" href="#cline" data-view="cline" title="Cline profiles" aria-label="Cline profiles"><span class="nav-icon">${icon("cline")}</span><span class="nav-label">Cline</span></a>
           <div id="provider-config-nav">
@@ -2155,6 +2158,12 @@ function shell() {
             </div>
           </section>
 
+          <section class="panel" id="panel-cursor" data-panel="cursor">
+            <div class="grid">
+              ${cursorAuthsCard()}
+            </div>
+          </section>
+
           <section class="panel" id="panel-cline" data-panel="cline">
             <div class="grid">
               ${clineAuthsCard()}
@@ -2185,6 +2194,7 @@ function runtime() {
       config: { title: "Config", subtitle: "Edit shimex.yml and .env on this host. Restart to apply." },
       pairing: { title: "Pairing", subtitle: "Host mode, client commands, and paired machines." },
       codex: { title: "Codex profiles", subtitle: "Connected OpenAI Codex accounts and usage." },
+      cursor: { title: "Cursor subscription", subtitle: "Sign in with Cursor and use your local subscription session." },
       cline: { title: "Cline profiles", subtitle: "Connected Cline accounts and usage." },
       grok: { title: "Grok session", subtitle: "Local Grok subscription session and usage." },
     };
@@ -2308,6 +2318,7 @@ function runtime() {
       if (!value || value === "overview" || value === "admin") return "overview";
       if (value === "pairing-card" || value === "pair" || value === "pair-client") return "pairing";
       if (value === "codex-auths" || value === "codex-auths-panel") return "codex";
+      if (value === "cursor-auths" || value === "cursor-auths-panel") return "cursor";
       if (value === "cline-auths" || value === "cline-auths-panel") return "cline";
       if (value === "grok-auths" || value === "grok-auths-panel") return "grok";
       if (VIEW_META[value]) return value;
@@ -3674,6 +3685,7 @@ function runtime() {
     }, { passive: true });
 
     ${codexAuthsRuntimeHelpers()}
+    ${cursorAuthsRuntimeHelpers()}
     ${clineAuthsRuntimeHelpers()}
     ${grokAuthsRuntimeHelpers()}
     ${pairingRuntimeHelpers()}
@@ -3683,6 +3695,7 @@ function runtime() {
     loadProviderConfigs();
     setView(location.hash || "overview", { updateHash: !location.hash });
     initCodexAuths();
+    initCursorAuths();
     initClineAuths();
     initGrokAuths();
     initPairing();

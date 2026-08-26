@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { codexCatalogEntry, generateCodexCatalog } from "../src/clients/codex/catalog.js";
@@ -70,6 +70,22 @@ describe("Shimex scaffold", () => {
     assert.equal(entry.supports_image_detail_original, false);
   });
 
+  test("does not invent Effort choices for models with known fixed variants", () => {
+    const catalog = generateCodexCatalog([{
+      slug: "cursor-fixed",
+      displayName: "Cursor Fixed",
+      providerId: "cursor-composer",
+      providerDisplayName: "Cursor Composer",
+      upstreamModel: "cursor-fixed",
+      contextWindow: 128000,
+      inputModalities: ["text"],
+      reasoningLevel: "medium",
+      reasoningLevelsKnown: true,
+      supportedReasoningLevels: [],
+    }]);
+    assert.deepEqual(catalog.models[0].supported_reasoning_levels, []);
+  });
+
   test("supports Codex-specific names and visibility", () => {
     const catalog = generateCodexCatalog([
       {
@@ -92,6 +108,19 @@ describe("Shimex scaffold", () => {
 
     assert.deepEqual(catalog.models.map((model) => model.slug), ["hermes"]);
     assert.equal(catalog.models[0].display_name, "Hermes Agent");
+  });
+
+  test("omits the ClinePass provider prefix in the Codex picker", () => {
+    const entry = codexCatalogEntry({
+      slug: "cline-pass-kimi-k3",
+      displayName: "Kimi K3",
+      providerId: "cline-pass",
+      providerDisplayName: "ClinePass",
+      upstreamModel: "cline-pass/kimi-k3",
+      contextWindow: 128000,
+      inputModalities: ["text"],
+    });
+    assert.equal(entry.display_name, "Kimi K3");
   });
 
   test("advertises explicitly supported Codex web search", () => {
@@ -137,14 +166,45 @@ describe("Shimex scaffold", () => {
             inputModalities: ["text"],
           }],
         },
-        { id: "cursor-composer", enabled: true, models: [] },
+        { id: "cursor-composer", enabled: true, models: [], options: { show_without_auth: true } },
       ],
     };
     const models = await discoverModels(config);
     const openRouter = models.find((model) => model.slug === "openrouter-glm");
     const composer = models.find((model) => model.slug === "composer-2-5");
     assert.equal(openRouter?.providerDisplayName, "OpenAI-Compatible Chat");
-    assert.equal(composer?.providerDisplayName, "Cursor Composer");
+  assert.equal(composer?.providerDisplayName, "Cursor");
+  assert.equal(codexCatalogEntry(composer).display_name, "Cursor: Composer 2.5");
+  });
+
+  test("hides Cursor models when the local Agent CLI is not authenticated", async () => {
+    const missingAgent = join(await mkdtemp(join(tmpdir(), "shimex-cursor-agent-")), "missing-agent");
+    const models = await discoverModels({
+      providers: [{
+        id: "cursor-composer",
+        enabled: true,
+        models: [],
+        options: { cursor_agent_bin: missingAgent },
+      }],
+    });
+    assert.deepEqual(models, []);
+  });
+
+  test("exposes Cursor models after a successful Agent CLI status check", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-cursor-agent-"));
+    const agent = join(root, "cursor-agent");
+    await writeFile(agent, "#!/bin/sh\n[ \"$1\" = status ]\n");
+    await chmod(agent, 0o755);
+    const models = await discoverModels({
+      providers: [{
+        id: "cursor-composer",
+        enabled: true,
+        models: [],
+        options: { cursor_agent_bin: agent },
+      }],
+    });
+    assert.deepEqual(models.map((model) => model.slug), ["composer-2-5"]);
+    assert.equal(models[0].contextWindow, 200000);
   });
 
   test("slugifies provider model IDs", () => {
@@ -197,6 +257,22 @@ providers:
     assert.equal(config.providers.find((provider) => provider.id === "chatgpt-codex")?.enabled, true);
   });
 
+  test("hides Hermes Agent and Cloudflare GLM from the Codex picker", async () => {
+    const config = await loadShimexConfig();
+    const hermes = config.providers
+      .find((provider) => provider.id === "openai-compatible")
+      ?.models.find((model) => model.slug === "hermes");
+    const glm = config.providers
+      .find((provider) => provider.id === "cloudflare-workers-ai")
+      ?.models.find((model) => model.slug === "cloudflare-glm-5-2");
+    assert.equal(hermes?.codexVisible, false);
+    assert.equal(glm?.codexVisible, false);
+    assert.deepEqual(generateCodexCatalog([
+      { slug: "hermes", displayName: "Hermes Agent", providerId: "openai-compatible", inputModalities: ["text"], codexVisible: hermes.codexVisible },
+      { slug: "cloudflare-glm-5-2", displayName: "Cloudflare GLM 5.2", providerId: "cloudflare-workers-ai", inputModalities: ["text"], codexVisible: glm.codexVisible },
+    ]).models.map((model) => model.slug), []);
+  });
+
   test("hides Grok models when session auth is unavailable", async () => {
     const missingAuthPath = join(await mkdtemp(join(tmpdir(), "shimex-grok-auth-")), "missing-auth.json");
     const models = await discoverModels({
@@ -210,6 +286,36 @@ providers:
       }],
     });
     assert.deepEqual(models, []);
+  });
+
+  test("falls back to Grok 4.6 metadata when the authenticated CLI cache is unavailable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-fallback-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      "https://auth.x.ai::test-client": {
+        auth_mode: "oidc",
+        key: "test-access-token",
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+    }));
+    const models = await discoverModels({
+      providers: [{
+        id: "grok",
+        enabled: true,
+        endpoint: "https://cli-chat-proxy.grok.com/v1",
+        auth: { type: "external-grok-login" },
+        models: [],
+        options: {
+          auth_path: authPath,
+          models_cache_path: join(root, "missing-models-cache.json"),
+        },
+      }],
+    });
+    const grok46 = models.find((model) => model.slug === "grok-4-6");
+    assert.equal(grok46?.upstreamModel, "grok-4.6");
+    assert.equal(grok46?.contextWindow, 500000);
+    assert.deepEqual(grok46?.inputModalities, ["text", "image"]);
+    assert.deepEqual(grok46?.supportedReasoningLevels.map((level) => level.effort), ["xhigh", "high", "medium", "low"]);
   });
 
   test("exposes Grok models when ~/.grok-style session auth exists", async () => {
@@ -230,14 +336,21 @@ providers:
     await writeFile(cachePath, JSON.stringify({
       grok_version: "0.2.114",
       models: {
-        "grok-4.5": {
+        "grok-4.6": {
           info: {
-            id: "grok-4.5",
-            model: "grok-4.5",
-            name: "Grok 4.5",
+            id: "grok-4.6",
+            model: "grok-4.6",
+            name: "Grok 4.6",
             context_window: 500000,
             hidden: false,
             supported_in_api: true,
+            reasoning_effort: "high",
+            reasoning_efforts: [
+              { value: "xhigh", description: "Highest effort and reasoning level" },
+              { value: "high", description: "Higher implementation quality" },
+              { value: "medium", description: "Balanced effort" },
+              { value: "low", description: "Quick implementations" },
+            ],
           },
         },
       },
@@ -256,10 +369,11 @@ providers:
       }],
     });
     assert.equal(models.length, 1);
-    assert.equal(models[0].slug, "grok-4-5");
+    assert.equal(models[0].slug, "grok-4-6");
     assert.equal(models[0].providerId, "grok");
-    assert.equal(models[0].upstreamModel, "grok-4.5");
+    assert.equal(models[0].upstreamModel, "grok-4.6");
     assert.deepEqual(models[0].inputModalities, ["text", "image"]);
+    assert.deepEqual(models[0].supportedReasoningLevels.map((level) => level.effort), ["xhigh", "high", "medium", "low"]);
   });
 
   test("allows SHIMEX_PUBLIC_URL to select the direct gateway fallback", async () => {

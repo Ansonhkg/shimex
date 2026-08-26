@@ -34,7 +34,7 @@ import {
   writeModeStore,
   writePairingStore,
 } from "../core/pairing.js";
-import { pairWithHost, clientStatus, setupClientDesktop } from "../core/clientMode.js";
+import { pairWithHost, clientStatus, setupClientDesktop, syncClientCatalog } from "../core/clientMode.js";
 import { resolveAdvertiseUrl } from "../core/network.js";
 import { buildInviteOneLiner, buildInviteUrl, copyTextToClipboard, preparePairingShareCard, shareFileViaAirDrop } from "../core/share.js";
 import { hostServiceStatus, installHostService, removeHostService, restartHostService } from "../server/service.js";
@@ -134,6 +134,7 @@ commands:
   host revoke-all            Revoke all paired clients
   client status              Show client pairing status
   client setup [--open]      Configure managed desktop app against the host
+  client sync                Refresh this client's model picker catalog from the host
 `);
   return 0;
 }
@@ -784,7 +785,17 @@ async function runClient(args) {
       return 1;
     }
   }
-  console.error("usage: shimex client <status|setup> [--open]");
+  if (subcommand === "sync") {
+    try {
+      const result = await syncClientCatalog(config);
+      console.log(JSON.stringify(result, null, 2));
+      return 0;
+    } catch (error) {
+      console.error(String(error?.message || error));
+      return 1;
+    }
+  }
+  console.error("usage: shimex client <status|setup|sync> [--open]");
   return 2;
 }
 

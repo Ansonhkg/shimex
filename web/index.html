@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shimex — Remote Grok 4.5 for Codex Desktop</title>
-  <meta name="description" content="Use Grok 4.5 and other host profiles from a remote Tailscale machine in Codex Desktop. Shimex keeps provider secrets on the host.">
+  <title>Shimex — Remote Grok 4.6 for Codex Desktop</title>
+  <meta name="description" content="Use Grok 4.6 and other host profiles from a remote Tailscale machine in Codex Desktop. Shimex keeps provider secrets on the host.">
   <meta name="application-name" content="Shimex">
   <meta name="author" content="anson">
   <meta name="robots" content="index,follow,max-image-preview:large">
@@ -16,8 +16,8 @@
   <meta property="og:site_name" content="Shimex">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shimex.xyz/">
-  <meta property="og:title" content="Shimex — Remote Grok 4.5 for Codex Desktop">
-  <meta property="og:description" content="Use Grok 4.5 from a remote Tailscale machine through a Shimex host/client bridge, without copying provider secrets.">
+  <meta property="og:title" content="Shimex — Remote Grok 4.6 for Codex Desktop">
+  <meta property="og:description" content="Use Grok 4.6 from a remote Tailscale machine through a Shimex host/client bridge, without copying provider secrets.">
   <meta property="og:image" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:secure_url" content="https://shimex.xyz/social-card.png">
   <meta property="og:image:type" content="image/png">
@@ -25,8 +25,8 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Shimex host and remote client bridge for Codex Desktop">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Shimex — Remote Grok 4.5 for Codex Desktop">
-  <meta name="twitter:description" content="Use a host's Grok 4.5 profile from a remote Tailscale client through Shimex.">
+  <meta name="twitter:title" content="Shimex — Remote Grok 4.6 for Codex Desktop">
+  <meta name="twitter:description" content="Use a host's Grok 4.6 profile from a remote Tailscale client through Shimex.">
   <meta name="twitter:image" content="https://shimex.xyz/social-card.png">
   <meta name="twitter:image:alt" content="Shimex host and remote client bridge for Codex Desktop">
   <script type="application/ld+json">
@@ -38,7 +38,7 @@
           "@id": "https://shimex.xyz/#website",
           "name": "Shimex",
           "url": "https://shimex.xyz/",
-          "description": "Use Grok 4.5, Kimi K3, and other configured LLM providers in Codex Desktop through a managed app copy and a host/client bridge.",
+          "description": "Use Grok 4.6, Kimi K3, and other configured LLM providers in Codex Desktop through a managed app copy and a host/client bridge.",
           "inLanguage": "en",
           "publisher": { "@id": "https://anson.sh/#person" }
         },
@@ -60,9 +60,9 @@
           "operatingSystem": "macOS",
           "url": "https://shimex.xyz/",
           "image": "https://shimex.xyz/social-card.png",
-          "description": "Shimex lets Codex Desktop use Grok 4.5, Kimi K3, and configured local, hosted, and CLI-backed LLM providers through a managed app copy and a host/client gateway bridge.",
+          "description": "Shimex lets Codex Desktop use Grok 4.6, Kimi K3, and configured local, hosted, and CLI-backed LLM providers through a managed app copy and a host/client gateway bridge.",
           "featureList": [
-            "Use a host's Grok 4.5 profile from a remote Tailscale client",
+            "Use a host's Grok 4.6 profile from a remote Tailscale client",
             "One-time host/client pairing with revocable scoped tokens",
             "Kimi K3 in the Codex Desktop model picker through ClinePass",
             "Streaming and Codex tool calling with Kimi K3",
@@ -121,7 +121,7 @@
             },
             {
               "@type": "Question",
-              "name": "Can a remote machine use a host's Grok 4.5 profile?",
+              "name": "Can a remote machine use a host's Grok 4.6 profile?",
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Yes. Pair a remote Tailscale client to a Shimex host with a one-time invite. The client receives a scoped revocable token while the Grok session stays on the host."
@@ -410,7 +410,7 @@
   <div class="update-banner-inner">
     <a class="update-banner-link" href="blog/host-client-bridge.html">
       <span class="label">New</span>
-      <span>Grok 4.5 is now available from remote Tailscale clients through a Shimex host.</span>
+      <span>Grok 4.6 is now available from remote Tailscale clients through a Shimex host.</span>
     </a>
     <button class="update-banner-close" type="button" data-update-banner-close aria-label="Dismiss product update">&times;</button>
   </div>
@@ -433,7 +433,7 @@
 </nav>
 
 <header class="hero">
-  <h1>Use Grok 4.5 from another machine in Codex Desktop &mdash; without copying secrets.</h1>
+  <h1>Use Grok 4.6 from another machine in Codex Desktop &mdash; without copying secrets.</h1>
   <p class="tagline">
     Shimex keeps your provider profiles on a host, then bridges a remote client over Tailscale with a one-time invite and revocable token. Your original Codex install stays untouched.
   </p>
@@ -451,7 +451,7 @@
     </a>
     <a class="sitelink" href="blog/host-client-bridge.html">
       <strong>Host/client bridge</strong>
-      <span>Use Grok 4.5 from a remote Tailscale machine while credentials stay on the host.</span>
+      <span>Use Grok 4.6 from a remote Tailscale machine while credentials stay on the host.</span>
     </a>
     <a class="sitelink" href="#documentation">
       <strong>Documentation</strong>
@@ -486,7 +486,7 @@
 
 <section id="host-client">
   <h2>Use host profiles from a remote Tailscale machine</h2>
-  <p><strong>Grok 4.5 is now available to remote Shimex clients.</strong> Start the host once, create a one-time client command, and use the host&rsquo;s provider profiles from another machine without copying API keys or Grok sessions.</p>
+  <p><strong>Grok 4.6 is now available to remote Shimex clients.</strong> Start the host once, create a one-time client command, and use the host&rsquo;s provider profiles from another machine without copying API keys or Grok sessions.</p>
   <div class="bridge-callout">
     <strong>Host:</strong> <code>shimex host up</code> &nbsp;→&nbsp; admin page → <strong>Create client command</strong> &nbsp;→&nbsp; <strong>Client:</strong> run the generated <code>curl ... | bash</code> command.
     <pre class="bridge-code"><code>shimex host up
@@ -500,7 +500,7 @@ shimex host code
     </div>
     <div class="mini-card">
       <h3>Same model picker, remote machine</h3>
-      <p>Open the managed client app and choose <code>Grok 4.5</code>. Requests travel through the host bridge over your private Tailscale network.</p>
+      <p>Open the managed client app and choose <code>Grok 4.6</code>. Requests travel through the host bridge over your private Tailscale network.</p>
     </div>
   </div>
   <p><a href="blog/host-client-bridge.html">Read the host/client bridge guide →</a></p>
@@ -511,7 +511,7 @@ shimex host code
   <p>Codex Desktop can only use the providers it knows about. Shimex gives it a local OpenAI-compatible gateway and generated model catalog so your own providers appear in the picker.</p>
   <ul>
     <li>Run Kimi K3 in Codex Desktop through an authenticated ClinePass profile, with text input, streaming responses, and Codex tool calling.</li>
-    <li>Use a host&rsquo;s authenticated Grok 4.5 profile from a remote Tailscale client through a one-time pairing invite and revocable token.</li>
+    <li>Use a host&rsquo;s authenticated Grok 4.6 profile from a remote Tailscale client through a one-time pairing invite and revocable token.</li>
     <li>Use hosted APIs, local model servers, OpenAI-compatible endpoints, and external CLI-backed providers from Codex Desktop.</li>
     <li>Keep multiple ChatGPT/Codex and ClinePass profiles separate, with profile-scoped models in the picker so each request uses the selected account.</li>
     <li>Keep your original <code>/Applications/Codex.app</code> untouched by running a managed <code>Shimex.app</code> copy with an isolated profile.</li>
@@ -596,8 +596,8 @@ npm run shimex -- app stop                     # quit the app without stopping t
     <p>Yes. Connect a ClinePass profile in the Shimex admin UI, restart Shimex with <code>npm run stop:all &amp;&amp; npm start</code>, and select <code>web: Kimi K3</code> in the Codex model picker. Shimex supports text input, streaming responses, and Codex tool calls for Kimi K3.</p>
   </div>
   <div class="faq-item">
-    <h3>Can a remote machine use a host&rsquo;s Grok 4.5 profile?</h3>
-    <p>Yes. Run <code>shimex host up</code>, create a one-time client command in the admin page, and run it on the Tailscale client. The client can then select <code>Grok 4.5</code> without receiving the host&rsquo;s provider credentials.</p>
+    <h3>Can a remote machine use a host&rsquo;s Grok 4.6 profile?</h3>
+    <p>Yes. Run <code>shimex host up</code>, create a one-time client command in the admin page, and run it on the Tailscale client. The client can then select <code>Grok 4.6</code> without receiving the host&rsquo;s provider credentials.</p>
   </div>
   <div class="faq-item">
     <h3>Does the host need Shimex.app open for bridging?</h3>
@@ -634,7 +634,7 @@ npm run shimex -- app stop                     # quit the app without stopping t
   (function () {
     var banner = document.querySelector("[data-update-banner]");
     var close = document.querySelector("[data-update-banner-close]");
-    var key = "shimex-update-grok-4-5-dismissed";
+    var key = "shimex-update-grok-4-6-dismissed";
     try {
       if (sessionStorage.getItem(key) === "1") banner.hidden = true;
     } catch (_) {}

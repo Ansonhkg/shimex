@@ -4,9 +4,26 @@ import { readGrokAuth } from "./auth.js";
 
 export const DEFAULT_GROK_ENDPOINT = "https://cli-chat-proxy.grok.com/v1";
 const DEFAULT_GROK_MODELS_CACHE = "~/.grok/models_cache.json";
-const DEFAULT_CLIENT_VERSION = "0.2.114";
+// Minimum observed Grok Build version whose cache advertises Grok 4.6.
+// Config and the local CLI cache still take precedence over this fallback.
+const DEFAULT_CLIENT_VERSION = "1.0.3";
 
 const FALLBACK_GROK_MODELS = [
+  {
+    slug: "grok-4-6",
+    displayName: "Grok 4.6",
+    upstreamModel: "grok-4.6",
+    contextWindow: 500000,
+    inputModalities: ["text", "image"],
+    reasoningLevel: "high",
+    priority: 18010,
+    supportedReasoningLevels: [
+      { effort: "xhigh", description: "Highest effort and reasoning level" },
+      { effort: "high", description: "Higher implementation quality with extensive reasoning" },
+      { effort: "medium", description: "Balanced effort with standard implementation and testing" },
+      { effort: "low", description: "Quick, fast implementations" },
+    ],
+  },
   {
     slug: "grok-4-5",
     displayName: "Grok 4.5",

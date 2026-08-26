@@ -13,6 +13,7 @@ describe("admin page shell", () => {
     assert.match(html, /class="nav-label">Overview</);
     assert.match(html, /class="nav-label">Pairing</);
     assert.match(html, /class="nav-label">Codex</);
+    assert.match(html, /class="nav-label">Cursor</);
     assert.match(html, /class="nav-label">Cline</);
     assert.match(html, /--sidebar-w:\s*232px/);
     assert.match(html, /max-width:\s*960px/);
@@ -27,6 +28,7 @@ describe("admin page shell", () => {
     assert.match(html, /tok-key/);
     assert.match(html, /data-view="pairing"/);
     assert.match(html, /data-view="codex"/);
+    assert.match(html, /data-view="cursor"/);
     assert.match(html, /data-view="cline"/);
     assert.match(html, /data-view="grok"/);
     assert.match(html, /nav-separator/);
@@ -41,12 +43,14 @@ describe("admin page shell", () => {
     assert.match(html, /id="picker-list"/);
     assert.match(html, /id="panel-pairing"/);
     assert.match(html, /id="panel-codex"/);
+    assert.match(html, /id="panel-cursor"/);
     assert.match(html, /id="panel-cline"/);
     assert.match(html, /function setView/);
     assert.match(html, /id="doctor"/);
     assert.match(html, /Endpoints/);
     assert.match(html, /id="pairing-card"/);
     assert.match(html, /id="codex-auths-panel"/);
+    assert.match(html, /id="cursor-auths-panel"/);
     assert.match(html, /id="cline-auths-panel"/);
     assert.match(html, /\.grid > \.card\s*\{/);
     assert.match(html, /background: transparent;\s*border: 0;\s*border-radius: 0;\s*box-shadow: none;/);

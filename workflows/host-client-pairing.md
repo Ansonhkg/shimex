@@ -1,6 +1,6 @@
 # Host / Client Pairing Workflow
 
-Trigger: `shimex mode`, `shimex host code`, `shimex pair`, `shimex client setup`
+Trigger: `shimex mode`, `shimex host code`, `shimex pair`, `shimex client setup`, `shimex client sync`
 
 ## Goal
 
@@ -36,6 +36,16 @@ Manual:
 1. `npm run shimex -- pair --from-url 'http://host:5413/join?c=ABCD-EFGH'`
    or `npm run shimex -- pair 'ABCD-EFGH@host:5413'`
 2. `npm run shimex -- client setup --open`
+
+When the host adds or updates models, refresh the client's local Codex picker
+catalog without reinstalling the app:
+
+- Repository checkout: `npm run shimex -- client sync`
+- One-line bootstrap client: `~/.shimex/sync-model-catalog.sh`
+
+Fully quit and reopen the managed `Shimex.app` after syncing so Codex Desktop
+reloads the catalog. Inference continues to use the host gateway and provider
+credentials never move to the client.
 
 Shimex stores only:
 - host gateway URL

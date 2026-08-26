@@ -98,6 +98,7 @@ MODE_PATH="\$RUNTIME_HOME/mode.json"
 CATALOG_PATH="\$RUNTIME_HOME/codex-model-catalog.json"
 CONFIG_PATH="\$PROFILE_HOME/config.toml"
 AUTH_PATH="\$PROFILE_HOME/auth.json"
+CATALOG_SYNC_PATH="\$RUNTIME_HOME/sync-model-catalog.sh"
 
 python3 - "\$SESSION_PATH" "\$MODE_PATH" "\$GATEWAY" "\$CLIENT_TOKEN" "\$CLIENT_ID" <<'PY'
 from pathlib import Path
@@ -116,6 +117,7 @@ session = {
   "updatedAt": now,
 }
 Path(session_path).write_text(json.dumps(session, indent=2) + "\\n")
+Path(session_path).chmod(0o600)
 Path(mode_path).write_text(json.dumps({"version": 1, "mode": "client", "updatedAt": now}, indent=2) + "\\n")
 print(f"   Saved {session_path}")
 PY
@@ -173,7 +175,44 @@ fi
 echo "   App ready: \$MANAGED_APP (source=\$APP_SOURCE)"
 
 echo "3/5 Writing client profile pointed at host..."
-curl -fsSL -H "authorization: Bearer \$CLIENT_TOKEN" "\$GATEWAY/codex/model-catalog.json" -o "\$CATALOG_PATH"
+cat > "\$CATALOG_SYNC_PATH" <<'SYNC'
+#!/usr/bin/env bash
+set -euo pipefail
+RUNTIME_HOME="\${SHIMEX_RUNTIME_HOME:-\$HOME/.shimex}"
+SESSION_PATH="\$RUNTIME_HOME/client-session.json"
+CATALOG_PATH="\$RUNTIME_HOME/codex-model-catalog.json"
+if [[ ! -f "\$SESSION_PATH" ]]; then
+  echo "Shimex client session is missing at \$SESSION_PATH" >&2
+  exit 1
+fi
+SESSION_DATA=\$(python3 - "\$SESSION_PATH" <<'PY'
+import json, sys
+session = json.load(open(sys.argv[1]))
+print(str(session.get("gatewayUrl", "")).rstrip("/") + "\\t" + session.get("clientToken", ""))
+PY
+)
+IFS=\$'\\t' read -r GATEWAY CLIENT_TOKEN <<< "\$SESSION_DATA"
+if [[ -z "\$GATEWAY" || -z "\$CLIENT_TOKEN" ]]; then
+  echo "Shimex client session is incomplete." >&2
+  exit 1
+fi
+TEMP_PATH="\$CATALOG_PATH.tmp.\$\$"
+trap 'rm -f "\$TEMP_PATH"' EXIT
+curl -fsSL -H "authorization: Bearer \$CLIENT_TOKEN" "\$GATEWAY/codex/model-catalog.json" -o "\$TEMP_PATH"
+python3 - "\$TEMP_PATH" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+models = payload.get("models") or []
+if not models:
+    raise SystemExit("Host returned an empty Codex model catalog.")
+print(f"Refreshed {len(models)} models from the Shimex host.")
+PY
+chmod 600 "\$TEMP_PATH"
+mv "\$TEMP_PATH" "\$CATALOG_PATH"
+trap - EXIT
+SYNC
+chmod 700 "\$CATALOG_SYNC_PATH"
+"\$CATALOG_SYNC_PATH"
 DEFAULT_MODEL=\$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); models=data.get("models") or []; print((models[0] or {}).get("slug",""))' "\$CATALOG_PATH")
 if [[ -z "\$DEFAULT_MODEL" ]]; then
   DEFAULT_MODEL=\$(curl -fsSL -H "authorization: Bearer \$CLIENT_TOKEN" "\$GATEWAY/v1/models" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(((data.get("data") or [{}])[0]).get("id",""))')
@@ -226,6 +265,7 @@ echo "Done."
 echo "This machine is paired to the host and has the managed desktop app."
 echo "App source: \$APP_SOURCE"
 echo "Gateway: \$GATEWAY/v1"
+echo "Refresh models later: \$CATALOG_SYNC_PATH (then restart Shimex.app)"
 `;
   return script;
 }

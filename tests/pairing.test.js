@@ -21,7 +21,7 @@ import {
 } from "../src/core/pairing.js";
 import { authorizeRequest } from "../src/core/access.js";
 import { createPairingRoutes } from "../src/server/pairingRoutes.js";
-import { remoteGatewayConfig } from "../src/core/clientMode.js";
+import { remoteGatewayConfig, syncClientCatalog } from "../src/core/clientMode.js";
 import { writeCodexProfile } from "../src/clients/codex/lifecycle.js";
 
 const execFileAsync = promisify(execFile);
@@ -94,6 +94,12 @@ describe("Host/client pairing", () => {
       client: { id: "c1", scopes: ["models:use", "catalog:read"] },
     });
     assert.equal(remoteModel.ok, true);
+    const remoteLlms = authorizeRequest("/llms.txt", "GET", {
+      local: false,
+      client: { id: "c1", scopes: ["catalog:read"] },
+      tokenPresent: true,
+    });
+    assert.equal(remoteLlms.ok, true);
 
     const remoteAdmin = authorizeRequest("/api/install", "POST", {
       local: false,
@@ -204,6 +210,41 @@ describe("Host/client pairing", () => {
     assert.doesNotMatch(codexConfig, /experimental_bearer_token/);
     const auth = JSON.parse(await readFile(profile.authPath, "utf8"));
     assert.equal(auth.OPENAI_API_KEY, "client-token-abc123");
+  });
+
+  test("remote clients can refresh the local picker catalog without reinstalling", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-client-sync-"));
+    const config = {
+      runtime: { host: "127.0.0.1", port: 5413, home: join(root, "runtime") },
+      codex: {
+        profileHome: join(root, "profile"),
+        managedAppPath: join(root, "Shimex.app"),
+        userDataDir: join(root, "user-data"),
+      },
+      providers: [],
+    };
+    const session = {
+      gatewayUrl: "http://100.64.9.9:5413",
+      clientToken: "client-token-abc123",
+      clientId: "client_1",
+      scopes: ["models:use", "catalog:read"],
+    };
+    await writeClientSession(config, session);
+
+    const result = await syncClientCatalog(config, {
+      fetch: async (url, init) => {
+        assert.equal(url, "http://100.64.9.9:5413/codex/model-catalog.json");
+        assert.equal(init.headers.authorization, "Bearer client-token-abc123");
+        return new Response(JSON.stringify({
+          models: [{ slug: "grok-4-6", display_name: "Grok: Grok 4.6" }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+
+    assert.equal(result.modelCount, 1);
+    assert.deepEqual(result.models, ["grok-4-6"]);
+    const catalog = JSON.parse(await readFile(join(root, "runtime", "codex-model-catalog.json"), "utf8"));
+    assert.equal(catalog.models[0].slug, "grok-4-6");
   });
 });
 

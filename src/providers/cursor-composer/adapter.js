@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { jsonResult, streamResult, validateModelInput } from "../routes.js";
+import { cursorAgentEnv, cursorWorkspace, resolveCursorAgentBin } from "./cli.js";
 import {
   chatChunkToResponsesEvents,
   createResponsesStreamState,
@@ -12,9 +13,14 @@ export async function handleCursorComposerRequest(route, pathname, body, options
   if (unsupported) {
     return unsupported;
   }
+  const upstreamModel = resolveCursorVariant(route.model, body);
+  if (upstreamModel.error) {
+    return jsonResult({ error: { message: upstreamModel.error, type: "cursor_agent_variant_error" } }, 400);
+  }
   if (pathname === "/v1/chat/completions") {
     return await runCursor(route, promptFromChat(body), {
       requestedModel: route.model.slug,
+      upstreamModel: upstreamModel.model,
       stream: Boolean(body.stream),
       asResponses: false,
       runCursorAgent: options.runCursorAgent,
@@ -23,6 +29,7 @@ export async function handleCursorComposerRequest(route, pathname, body, options
   if (pathname === "/v1/responses" || pathname === "/v1/responses/compact") {
     return await runCursor(route, buildCursorPrompt(body), {
       requestedModel: route.model.slug,
+      upstreamModel: upstreamModel.model,
       stream: Boolean(body.stream) && pathname !== "/v1/responses/compact",
       asResponses: true,
       runCursorAgent: options.runCursorAgent,
@@ -32,9 +39,13 @@ export async function handleCursorComposerRequest(route, pathname, body, options
 }
 
 async function runCursor(route, prompt, options) {
+  const agentBin = await resolveCursorAgentBin(route.providerConfig);
   const events = options.runCursorAgent
-    ? options.runCursorAgent(prompt, route.model.upstreamModel)
-    : runCursorAgent(prompt, route.model.upstreamModel);
+    ? options.runCursorAgent(prompt, options.upstreamModel)
+    : runCursorAgent(prompt, options.upstreamModel, {
+      agentBin,
+      providerConfig: route.providerConfig,
+    });
   if (options.stream) {
     return streamResult(async (response) => {
       if (options.asResponses) {
@@ -68,6 +79,53 @@ async function runCursor(route, prompt, options) {
     return jsonResult(cursorResponse(text, usage, options.requestedModel));
   }
   return jsonResult(cursorChatCompletion(text, usage, options.requestedModel));
+}
+
+export function resolveCursorVariant(model, body = {}) {
+  const variantMap = model.variantMap;
+  if (!variantMap || typeof variantMap !== "object") {
+    return { model: model.upstreamModel };
+  }
+
+  const effort = requestedReasoningEffort(body);
+  const variants = effort
+    ? variantMap.reasoning?.[effort]
+    : variantMap.reasoning?.[model.reasoningLevel] || variantMap.default || firstReasoningVariant(variantMap.reasoning);
+  if (effort && !variants) {
+    return { error: `${model.slug} does not offer Cursor reasoning effort '${effort}'.` };
+  }
+  if (!variants?.standard && !variants?.fast) {
+    return { model: model.upstreamModel };
+  }
+
+  if (requestsFastTier(body)) {
+    if (!variants.fast) {
+      return { error: `${model.slug} does not offer Cursor Fast at the selected reasoning effort.` };
+    }
+    return { model: variants.fast };
+  }
+  return { model: variants.standard || variants.fast };
+}
+
+function requestedReasoningEffort(body) {
+  const effort = body?.reasoning?.effort || body?.reasoning_effort || body?.reasoningEffort;
+  const normalized = String(effort || "").trim().toLowerCase().replaceAll("_", "-");
+  if (normalized === "extra-high") {
+    return "xhigh";
+  }
+  return normalized || "";
+}
+
+function requestsFastTier(body) {
+  const tier = body?.service_tier || body?.serviceTier || body?.speed;
+  return ["fast", "priority"].includes(String(tier || "").trim().toLowerCase());
+}
+
+function firstReasoningVariant(reasoning) {
+  if (!reasoning || typeof reasoning !== "object") {
+    return null;
+  }
+  return Object.values(reasoning).find((variants) => variants?.standard || variants?.fast) || null;
 }
 
 async function streamCursorAsResponses(response, events, requestedModel) {
@@ -148,8 +206,8 @@ function messageContent(message) {
   return stripThink(parts.filter(Boolean).join("\n"));
 }
 
-async function* runCursorAgent(prompt, model) {
-  const proc = spawn(cursorAgentBin(), [
+async function* runCursorAgent(prompt, model, options = {}) {
+  const proc = spawn(options.agentBin || "cursor-agent", [
     "--print",
     "--output-format",
     "stream-json",
@@ -157,11 +215,11 @@ async function* runCursorAgent(prompt, model) {
     "--force",
     "--trust",
     "--workspace",
-    process.env.SHIMEX_CURSOR_WORKSPACE || process.cwd(),
+    cursorWorkspace(options.providerConfig),
     "--model",
     model,
   ], {
-    env: cursorEnv(),
+    env: cursorAgentEnv(),
     stdio: ["pipe", "pipe", "pipe"],
   });
   let spawnError = null;
@@ -311,29 +369,23 @@ function normalizeResponsesUsage(usage) {
   };
 }
 
-function cursorAgentBin() {
-  return process.env.CURSOR_AGENT_BIN || "cursor-agent";
-}
-
-function cursorEnv() {
-  const env = { ...process.env };
-  delete env.CURSOR_API_KEY;
-  if (process.env.CURSOR_AGENT_BIN) {
-    env.PATH = `${process.env.CURSOR_AGENT_BIN.split("/").slice(0, -1).join("/")}:${env.PATH || ""}`;
-  }
-  return env;
-}
-
 function cursorErrorMessage(stderr, code) {
   const message = stderr.trim() || `cursor-agent exited with code ${code}`;
   return isCursorAuthFailure(message)
-    ? "Cursor Agent is not authenticated. Run `cursor-agent login`, then `cursor-agent status`, and retry."
+    ? "Cursor Agent is not authenticated. Run `agent login` (or `cursor-agent login`), then retry."
+    : isCursorMissing(message)
+      ? "Cursor Agent CLI is not installed. Install it, set CURSOR_AGENT_BIN to its executable, and retry."
     : message;
 }
 
 function isCursorAuthFailure(message) {
   const lowered = message.toLowerCase();
   return ["authentication required", "not authenticated", "not logged in", "agent login", "cursor_api_key"].some((marker) => lowered.includes(marker));
+}
+
+function isCursorMissing(message) {
+  const lowered = message.toLowerCase();
+  return lowered.includes("enoent") || lowered.includes("no such file or directory") || lowered.includes("not found");
 }
 
 function stripThink(text) {
