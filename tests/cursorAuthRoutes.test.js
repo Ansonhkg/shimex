@@ -72,6 +72,26 @@ describe("Cursor auth routes", () => {
     assert.match(body.message, /not found/i);
   });
 
+  test("reports a Cursor Agent status timeout instead of treating it as signed out", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-cursor-timeout-"));
+    const agentBin = join(root, "cursor-agent");
+    await writeFile(agentBin, "#!/bin/sh\nsleep 2\necho 'Logged in as test@example.com'\n");
+    await chmod(agentBin, 0o755);
+    clearCursorAgentAuthCache();
+    const routes = createCursorAuthRoutes({
+      providers: [{ id: "cursor-composer", options: { cursor_agent_bin: agentBin, status_timeout_ms: 50 } }],
+    });
+    const result = await routes.route(
+      { method: "GET" },
+      new URL("http://127.0.0.1/api/cursor-auth"),
+    );
+    const body = JSON.parse(result.body);
+    assert.equal(result.status, 200);
+    assert.equal(body.connected, false);
+    assert.equal(body.reason, "status-timeout");
+    assert.match(body.message, /timed out/i);
+  });
+
   test("does not treat Cursor's successful Not logged in status as authenticated", async () => {
     const root = await mkdtemp(join(tmpdir(), "shimex-cursor-auth-"));
     const agentBin = join(root, "cursor-agent");

@@ -866,6 +866,7 @@ function responsesToolsToChatTools(tools) {
   if (!Array.isArray(tools)) {
     return [];
   }
+  const seen = new Set();
   return tools
     .flatMap((tool) => {
       if (tool?.type === "namespace" && Array.isArray(tool.tools)) {
@@ -882,7 +883,14 @@ function responsesToolsToChatTools(tools) {
         parameters: chatToolParameters(tool),
       },
     }))
-    .filter((tool) => tool.function.name);
+    .filter((tool) => {
+      const name = tool.function.name;
+      if (!name || seen.has(name)) {
+        return false;
+      }
+      seen.add(name);
+      return true;
+    });
 }
 
 function chatToolParameters(tool) {
@@ -912,19 +920,175 @@ function objectParametersSchema(schema) {
   if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
     return { type: "object", properties: {} };
   }
+  if (schema.$ref || unionVariants(schema)) {
+    return flattenJsonSchemaToObject(schema, schema) || { type: "object", properties: {} };
+  }
   if (Array.isArray(schema.type)) {
     if (schema.type.includes("object")) {
-      return { ...schema, type: "object", properties: objectProperties(schema.properties) };
+      return chatObjectSchema(schema, schema);
     }
     return scalarParametersSchema(schema);
   }
-  if (!schema.type) {
-    return { ...schema, type: "object", properties: objectProperties(schema.properties) };
-  }
-  if (schema.type === "object") {
-    return { ...schema, properties: objectProperties(schema.properties) };
+  if (!schema.type || schema.type === "object") {
+    return chatObjectSchema(schema, schema);
   }
   return scalarParametersSchema(schema);
+}
+
+function flattenJsonSchemaToObject(schema, root, seen = new Set()) {
+  const resolved = dereference(schema, root, seen);
+  if (!resolved || typeof resolved !== "object" || Array.isArray(resolved)) {
+    return null;
+  }
+  const variants = unionVariants(resolved);
+  if (variants) {
+    const objects = variants
+      .map((variant) => flattenJsonSchemaToObject(variant, root))
+      .filter(Boolean);
+    if (!objects.length) {
+      return { type: "object", properties: {} };
+    }
+    return mergeObjectSchemas(objects);
+  }
+  const types = Array.isArray(resolved.type) ? resolved.type : resolved.type ? [resolved.type] : [];
+  if (types.length && !types.includes("object")) {
+    return null;
+  }
+  return chatObjectSchema(resolved, root);
+}
+
+function chatObjectSchema(schema, root) {
+  const properties = {};
+  for (const [key, value] of Object.entries(objectProperties(schema.properties))) {
+    properties[key] = simplifyProperty(value, root);
+  }
+  const objectSchema = { type: "object", properties };
+  if (Array.isArray(schema.required) && schema.required.length) {
+    objectSchema.required = schema.required.filter((item) => item in properties);
+  }
+  return objectSchema;
+}
+
+function mergeObjectSchemas(objects) {
+  const properties = {};
+  const requiredSets = [];
+  for (const object of objects) {
+    for (const [key, value] of Object.entries(object.properties || {})) {
+      properties[key] = mergeProperty(properties[key], value);
+    }
+    if (Array.isArray(object.required) && object.required.length) {
+      requiredSets.push(new Set(object.required));
+    }
+  }
+  const objectSchema = { type: "object", properties };
+  if (requiredSets.length) {
+    const required = [...requiredSets[0]].filter((key) => requiredSets.every((set) => set.has(key)) && key in properties);
+    if (required.length) {
+      objectSchema.required = required;
+    }
+  }
+  return objectSchema;
+}
+
+function simplifyProperty(schema, root) {
+  const resolved = dereference(schema, root, new Set());
+  if (!resolved || typeof resolved !== "object" || Array.isArray(resolved)) {
+    return { type: "string" };
+  }
+  const variants = unionVariants(resolved);
+  if (variants) {
+    const nonNull = variants
+      .map((variant) => dereference(variant, root, new Set()))
+      .filter((variant) => variant && variant.type !== "null" && variant.const !== null)
+      .map((variant) => simplifyProperty(variant, root));
+    if (!nonNull.length) {
+      return { type: "string" };
+    }
+    return nonNull.slice(1).reduce((merged, item) => mergeProperty(merged, item), nonNull[0]);
+  }
+  const { $ref, $defs, definitions, anyOf, oneOf, allOf, $schema, ...rest } = resolved;
+  if (rest.const !== undefined && rest.type == null) {
+    rest.type = typeof rest.const;
+  }
+  return rest;
+}
+
+function mergeProperty(left, right) {
+  if (!left) return right;
+  if (!right) return left;
+  const values = [...new Set([...enumValues(left), ...enumValues(right)])];
+  const merged = { ...left, ...right };
+  const description = left.description || right.description;
+  if (description) {
+    merged.description = description;
+  }
+  if (values.length) {
+    merged.type = "string";
+    merged.enum = values;
+    delete merged.const;
+  }
+  return merged;
+}
+
+function enumValues(schema) {
+  if (!schema || typeof schema !== "object") {
+    return [];
+  }
+  if (schema.const !== undefined) {
+    return [schema.const];
+  }
+  return Array.isArray(schema.enum) ? schema.enum : [];
+}
+
+function unionVariants(schema) {
+  if (Array.isArray(schema?.oneOf)) {
+    return schema.oneOf;
+  }
+  if (Array.isArray(schema?.anyOf)) {
+    return schema.anyOf;
+  }
+  if (Array.isArray(schema?.allOf)) {
+    return schema.allOf;
+  }
+  return null;
+}
+
+function dereference(schema, root, seen) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    return schema;
+  }
+  let current = schema;
+  const localSeen = new Set(seen);
+  while (current && typeof current.$ref === "string") {
+    if (localSeen.has(current.$ref)) {
+      break;
+    }
+    localSeen.add(current.$ref);
+    const resolved = resolvePointer(root, current.$ref);
+    if (!resolved || typeof resolved !== "object") {
+      break;
+    }
+    current = {
+      ...resolved,
+      ...(current.description && !resolved.description ? { description: current.description } : {}),
+    };
+  }
+  return current;
+}
+
+function resolvePointer(root, ref) {
+  if (typeof ref !== "string" || !ref.startsWith("#/")) {
+    return null;
+  }
+  let node = root;
+  for (const part of ref.slice(2).split("/")) {
+    const key = part.replaceAll("~1", "/").replaceAll("~0", "~");
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    node = node[key];
+  }
+  return node;
 }
 
 function scalarParametersSchema(schema) {

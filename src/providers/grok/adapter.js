@@ -72,12 +72,13 @@ function limitGrokTools(body, route) {
   if (!Array.isArray(body.tools)) {
     return body;
   }
+  const tools = uniqueToolsByName(body.tools);
   const configured = route.providerConfig.options?.max_tools ?? route.providerConfig.options?.maxTools;
   const maxTools = Number.isInteger(Number(configured)) && Number(configured) > 0
     ? Number(configured)
     : DEFAULT_GROK_MAX_TOOLS;
-  if (body.tools.length <= maxTools) {
-    return body;
+  if (tools.length <= maxTools) {
+    return tools === body.tools ? body : { ...body, tools };
   }
 
   const requestedTool = toolChoiceName(body.tool_choice);
@@ -85,22 +86,37 @@ function limitGrokTools(body, route) {
   const selected = [];
   const seen = new Set();
   const add = (tool) => {
-    if (selected.length >= maxTools || seen.has(tool)) {
+    const name = toolName(tool);
+    if (!name || selected.length >= maxTools || seen.has(name)) {
       return;
     }
-    seen.add(tool);
+    seen.add(name);
     selected.push(tool);
   };
 
-  for (const tool of body.tools) {
+  for (const tool of tools) {
     if (priority.has(toolName(tool))) {
       add(tool);
     }
   }
-  for (const tool of body.tools) {
+  for (const tool of tools) {
     add(tool);
   }
   return { ...body, tools: selected };
+}
+
+function uniqueToolsByName(tools) {
+  const seen = new Set();
+  const unique = [];
+  for (const tool of tools) {
+    const name = toolName(tool);
+    if (!name || seen.has(name)) {
+      continue;
+    }
+    seen.add(name);
+    unique.push(tool);
+  }
+  return unique;
 }
 
 function toolName(tool) {

@@ -1,5 +1,5 @@
 import { access, readdir } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, mkdirSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -14,8 +14,9 @@ const execFileAsync = promisify(execFile);
 // replacement that preserves the same collision protection.
 const DEFAULT_CURSOR_AGENT_BIN = "cursor-agent";
 const STATUS_CACHE_TTL_MS = 30_000;
-const STATUS_TIMEOUT_MS = 15_000;
-const MODEL_LIST_TIMEOUT_MS = 10_000;
+const STATUS_FAILURE_CACHE_TTL_MS = 1_000;
+const STATUS_TIMEOUT_MS = 45_000;
+const MODEL_LIST_TIMEOUT_MS = 30_000;
 const statusCache = new Map();
 
 export async function resolveCursorAgentBin(providerConfig = {}) {
@@ -41,7 +42,11 @@ export async function checkCursorAgentAuth(providerConfig = {}) {
   }
 
   const value = await probeCursorAgentAuth(agentBin, providerConfig);
-  statusCache.set(cacheKey, { value, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+  // Successful probes can be reused. Failed probes are cached only briefly so a
+  // cold-start timeout cannot hide a connected Cursor session from the admin
+  // profile and model picker.
+  const ttl = value.authenticated ? STATUS_CACHE_TTL_MS : STATUS_FAILURE_CACHE_TTL_MS;
+  statusCache.set(cacheKey, { value, expiresAt: Date.now() + ttl });
   return value;
 }
 
@@ -75,11 +80,18 @@ export function cursorAgentEnv() {
 }
 
 export function cursorWorkspace(providerConfig = {}) {
-  return expandHome(
+  const path = expandHome(
     process.env.SHIMEX_CURSOR_WORKSPACE
       || providerConfig.options?.workspace
-      || process.cwd(),
+      || "~/.shimex/cursor-workspace",
   );
+  mkdirSync(path, { recursive: true });
+  return path;
+}
+
+function statusTimeoutMs(providerConfig = {}) {
+  const configured = Number(providerConfig.options?.status_timeout_ms ?? providerConfig.options?.statusTimeoutMs);
+  return Number.isInteger(configured) && configured > 0 ? configured : STATUS_TIMEOUT_MS;
 }
 
 async function probeCursorAgentAuth(agentBin, providerConfig) {
@@ -87,7 +99,7 @@ async function probeCursorAgentAuth(agentBin, providerConfig) {
     const result = await execFileAsync(agentBin, ["status"], {
       cwd: cursorWorkspace(providerConfig),
       env: cursorAgentEnv(),
-      timeout: STATUS_TIMEOUT_MS,
+      timeout: statusTimeoutMs(providerConfig),
       maxBuffer: 64 * 1024,
     });
     if (looksUnauthenticated(`${result.stdout || ""}\n${result.stderr || ""}`)) {
@@ -142,7 +154,13 @@ function classifyProbeFailure(error) {
   if (error?.code === "ENOENT") {
     return "not-installed";
   }
-  if (error?.code === "ETIMEDOUT") {
+  if (
+    error?.code === "ETIMEDOUT"
+    || error?.code === "ABORT_ERR"
+    || error?.killed
+    || error?.signal === "SIGTERM"
+    || error?.signal === "SIGKILL"
+  ) {
     return "status-timeout";
   }
   return "not-authenticated";

@@ -8,6 +8,7 @@ import { loadShimexConfig } from "../src/core/config.js";
 import { slugify } from "../src/core/model.js";
 import { discoverModels } from "../src/core/modelDiscovery.js";
 import { listProviderManifests } from "../src/providers/index.js";
+import { normalizeCursorAgentModels } from "../src/providers/cursor-composer/models.js";
 
 describe("Shimex scaffold", () => {
   test("registers supported provider families", () => {
@@ -188,6 +189,32 @@ describe("Shimex scaffold", () => {
       }],
     });
     assert.deepEqual(models, []);
+  });
+
+  test("does not double-prefix Cursor CLI IDs that already start with cursor-", () => {
+    const models = normalizeCursorAgentModels([
+      { id: "cursor-grok-4.6-low", displayName: "Cursor Grok 4.6 Low" },
+      { id: "cursor-grok-4.6-high", displayName: "Cursor Grok 4.6" },
+      { id: "cursor-grok-4.6-high-fast", displayName: "Cursor Grok 4.6 Fast" },
+      { id: "composer-2.5", displayName: "Composer 2.5" },
+    ], [{
+      slug: "composer-2-5",
+      displayName: "Composer 2.5",
+      upstreamModel: "composer-2.5",
+      contextWindow: 200000,
+      inputModalities: ["text"],
+    }]);
+    const grok = models.find((model) => model.slug === "cursor-grok-4-6");
+    const composer = models.find((model) => model.slug === "composer-2-5");
+    assert.ok(grok);
+    assert.equal(grok.displayName, "Grok 4.6");
+    assert.equal(codexCatalogEntry({
+      ...grok,
+      providerId: "cursor-composer",
+      providerDisplayName: "Cursor",
+    }).display_name, "Cursor: Grok 4.6");
+    assert.equal(composer.displayName, "Composer 2.5");
+    assert.equal(models.some((model) => model.slug === "cursor-cursor-grok-4-6"), false);
   });
 
   test("exposes Cursor models after a successful Agent CLI status check", async () => {

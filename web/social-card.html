@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Shimex social card</title>
+  <style>
+    html, body { margin: 0; padding: 0; }
+    body {
+      width: 1200px;
+      height: 630px;
+      background: #fff;
+      color: #111;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+      overflow: hidden;
+    }
+    .card {
+      box-sizing: border-box;
+      width: 1200px;
+      height: 630px;
+      padding: 48px 56px 40px;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+    .brand img { width: 36px; height: 36px; border-radius: 8px; }
+    .rule { height: 1px; background: #e6e6e6; margin: 28px 0 0; }
+    .body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 48px;
+      align-items: center;
+      padding-top: 36px;
+    }
+    h1 {
+      margin: 0 0 18px;
+      font-size: 46px;
+      line-height: 1.12;
+      font-weight: 650;
+      letter-spacing: -0.035em;
+    }
+    .sub {
+      margin: 0;
+      font-size: 22px;
+      color: #6b6b6b;
+      letter-spacing: -0.02em;
+    }
+    .diagram {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 18px;
+      align-items: center;
+    }
+    .pane {
+      border: 1.5px solid #e6e6e6;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #111;
+      box-shadow: 0 18px 40px rgba(0,0,0,.08);
+    }
+    .chrome {
+      height: 28px;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .r { background: #ff5f57; } .y { background: #febc2e; } .g { background: #28c840; }
+    .screen { padding: 16px 14px 18px; }
+    .label {
+      color: #a3a3a3;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .row {
+      height: 10px;
+      border-radius: 6px;
+      background: #2a2a2a;
+      margin-bottom: 8px;
+    }
+    .row.short { width: 62%; }
+    .chip {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: #1c1c1c;
+      color: #ededed;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .link {
+      width: 54px;
+      height: 2px;
+      background: #ffac0a;
+      position: relative;
+    }
+    .link::before, .link::after {
+      content: "";
+      position: absolute;
+      top: -4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ffac0a;
+    }
+    .link::before { left: -4px; }
+    .link::after { right: -4px; }
+    .caption {
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+    .foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      color: #9a9a9a;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><img src="icon.png" alt="">Shimex</div>
+    <div class="rule"></div>
+    <div class="body">
+      <div>
+        <h1>Use Grok 4.6 and Cursor from another machine in Codex Desktop.</h1>
+        <p class="sub">Provider profiles stay on the host.</p>
+      </div>
+      <div>
+        <div class="diagram">
+          <div>
+            <div class="pane">
+              <div class="chrome"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+              <div class="screen">
+                <div class="label">Host</div>
+                <div class="row"></div>
+                <div class="row short"></div>
+                <div class="chip">Grok · Cursor</div>
+              </div>
+            </div>
+            <div class="caption">Host</div>
+          </div>
+          <div class="link" aria-hidden="true"></div>
+          <div>
+            <div class="pane">
+              <div class="chrome"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+              <div class="screen">
+                <div class="label">Remote client</div>
+                <div class="row"></div>
+                <div class="row short"></div>
+                <div class="chip">via host token</div>
+              </div>
+            </div>
+            <div class="caption">Remote client</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>shimex.xyz</span></div>
+  </div>
+</body>
+</html>

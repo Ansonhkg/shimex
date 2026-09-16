@@ -92,7 +92,7 @@ function cursorModelFromGroup(group, fallbackByUpstream) {
     && selectableVariants.every((variants) => variants?.standard && variants?.fast);
 
   return {
-    slug: fallback?.slug || `cursor-${slugify(group.baseId)}`,
+    slug: fallback?.slug || cursorSlug(group.baseId),
     displayName: fallback?.displayName || group.displayName,
     upstreamModel: defaultVariant,
     // Cursor does not expose reliable context or modality metadata through its
@@ -150,10 +150,16 @@ function parseCursorVariant(id, displayName) {
 function cursorFamilyDisplayName(value) {
   return String(value || "")
     .trim()
+    .replace(/^Cursor\s+/i, "")
     .replace(/\s+Fast$/i, "")
     .replace(/\s+(?:Extra High|High|Medium|Low|Max|None)(?=\s+(?:Thinking|\(NO ZDR\)))/i, "")
     .replace(/\s+(?:Extra High|High|Medium|Low|Max|None)$/i, "")
     .trim() || String(value || "").trim();
+}
+
+function cursorSlug(baseId) {
+  const trimmed = String(baseId || "").replace(/^cursor-/i, "");
+  return `cursor-${slugify(trimmed)}`;
 }
 
 function firstAvailable(...variants) {

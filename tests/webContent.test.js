@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 describe("public Shimex content", () => {
   test("announces the Grok 4.6 bridge in visible and search metadata", async () => {
     const html = await readFile(new URL("../web/index.html", import.meta.url), "utf8");
-    assert.match(html, /<title>Shimex — Remote Grok 4\.6 for Codex Desktop<\/title>/);
-    assert.match(html, /Grok 4\.6 is now available from remote Tailscale clients/);
-    assert.match(html, /shimex-update-grok-4-6-dismissed/);
+    assert.match(html, /<title>Shimex — Remote Grok 4\.6 and Cursor for Codex Desktop<\/title>/);
+    assert.match(html, /Grok 4\.6 and Cursor profiles are now available from remote Tailscale clients/);
+    assert.match(html, /shimex-update-grok-cursor-profiles-dismissed/);
     assert.match(html, /Kimi K3 is now supported in Shimex through ClinePass/);
     assert.match(html, /<section id="kimi-k3">/);
     assert.match(html, /<section id="host-client">/);
@@ -21,17 +21,17 @@ describe("public Shimex content", () => {
     const software = graph.find((entry) => entry["@type"] === "SoftwareApplication");
     const faq = graph.find((entry) => entry["@type"] === "FAQPage");
     const navigation = graph.find((entry) => entry["@type"] === "ItemList");
-    assert.ok(software.featureList.some((feature) => feature.includes("Grok 4.6")));
+    assert.ok(software.featureList.some((feature) => feature.includes("Grok 4.6") && feature.includes("Cursor")));
     assert.ok(software.featureList.some((feature) => feature.includes("Kimi K3")));
     assert.ok(faq.mainEntity.some((entry) => entry.name === "Can I use Kimi K3 in Codex Desktop?"));
-    assert.ok(faq.mainEntity.some((entry) => entry.name.includes("remote machine") && entry.name.includes("Grok 4.6")));
+    assert.ok(faq.mainEntity.some((entry) => entry.name.includes("remote machine") && entry.name.includes("Grok 4.6") && entry.name.includes("Cursor")));
     assert.ok(navigation.itemListElement.some((entry) => entry.name === "Host/client bridge"));
   });
 
   test("publishes the host/client bridge article with crawlable SEO data", async () => {
     const html = await readFile(new URL("../web/blog/host-client-bridge.html", import.meta.url), "utf8");
     assert.match(html, /<link rel="canonical" href="https:\/\/shimex\.xyz\/blog\/host-client-bridge\.html">/);
-    assert.match(html, /Use Grok 4\.6 from a remote Codex Desktop client/);
+    assert.match(html, /Use Grok 4\.6 and Cursor from a remote Codex Desktop client/);
     assert.match(html, /assets\/shimex-bridge\.svg/);
     const source = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
     const graph = JSON.parse(source)["@graph"];
@@ -55,11 +55,12 @@ describe("public Shimex content", () => {
       readFile(new URL("../web/llms.txt", import.meta.url), "utf8"),
       readFile(new URL("../web/sitemap.xml", import.meta.url), "utf8"),
     ]);
-    assert.match(readme, /^> \*\*Latest update:\*\* Grok 4\.6/m);
+    assert.match(readme, /^> \*\*Latest update:\*\* Grok 4\.6 and Cursor/m);
     assert.match(readme, /## Kimi K3 in Codex Desktop/);
     assert.match(llms, /Grok 4\.6/);
+    assert.match(llms, /Cursor/);
     assert.match(llms, /Host\/client bridge guide/);
     assert.match(sitemap, /<loc>https:\/\/shimex\.xyz\/blog\/host-client-bridge\.html<\/loc>/);
-    assert.match(sitemap, /<lastmod>2026-08-12<\/lastmod>/);
+    assert.match(sitemap, /<lastmod>2026-09-15<\/lastmod>/);
   });
 });

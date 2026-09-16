@@ -91,6 +91,147 @@ describe("Provider request adapters", () => {
     ]);
   });
 
+  test("drops duplicate Grok function names after flattening namespaced tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-dup-tools-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      account: {
+        key: "fake-grok-token",
+        expires_at: "2099-01-01T00:00:00.000Z",
+      },
+    }));
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "grok",
+        endpoint: "https://example.test/v1",
+        options: { auth_path: authPath },
+        models: [modelConfig({ slug: "grok-4-6", upstreamModel: "grok-4.6" })],
+      }),
+      "/v1/responses",
+      {
+        model: "grok-4-6",
+        input: "check my usage",
+        tools: [
+          toolDefinition("js"),
+          toolDefinition("exec_command"),
+          {
+            type: "namespace",
+            name: "browser",
+            tools: [toolDefinition("js"), toolDefinition("view_image")],
+          },
+        ],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_grok",
+            model: "grok-4.6",
+            choices: [{ message: { role: "assistant", content: "ok" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const names = JSON.parse(calls[0].init.body).tools.map((tool) => tool.function.name);
+    assert.deepEqual(names, ["js", "exec_command", "view_image"]);
+    assert.equal(names.filter((name) => name === "js").length, 1);
+  });
+
+  test("flattens Grok union tool schemas to a single object root", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shimex-grok-union-tools-"));
+    const authPath = join(root, "auth.json");
+    await writeFile(authPath, JSON.stringify({
+      account: {
+        key: "fake-grok-token",
+        expires_at: "2099-01-01T00:00:00.000Z",
+      },
+    }));
+    const calls = [];
+    const result = await handleProviderModelRequest(
+      testConfig({
+        id: "grok",
+        endpoint: "https://example.test/v1",
+        options: { auth_path: authPath },
+        models: [modelConfig({ slug: "grok-4-6", upstreamModel: "grok-4.6" })],
+      }),
+      "/v1/responses",
+      {
+        model: "grok-4-6",
+        input: "check my usage",
+        tools: [{
+          type: "namespace",
+          name: "codex_app",
+          tools: [{
+            type: "function",
+            name: "automation_update",
+            description: "Create or update automations.",
+            inputSchema: {
+              oneOf: [
+                {
+                  type: "object",
+                  properties: {
+                    mode: { type: "string", const: "view" },
+                    id: { $ref: "#/$defs/id" },
+                  },
+                  required: ["mode", "id"],
+                },
+                {
+                  oneOf: [
+                    {
+                      type: "object",
+                      properties: {
+                        mode: { type: "string", enum: ["create", "suggested_create"] },
+                        name: { type: "string" },
+                        projectId: { anyOf: [{ type: "string" }, { type: "null" }] },
+                      },
+                      required: ["mode", "name"],
+                    },
+                  ],
+                },
+                {
+                  type: "object",
+                  properties: {
+                    mode: { type: "string", const: "delete" },
+                    id: { $ref: "#/$defs/id" },
+                  },
+                  required: ["mode", "id"],
+                },
+              ],
+              $defs: {
+                id: { type: "string", minLength: 1, description: "Automation id." },
+              },
+            },
+          }],
+        }],
+        stream: false,
+      },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse({
+            id: "chatcmpl_grok",
+            model: "grok-4.6",
+            choices: [{ message: { role: "assistant", content: "ok" } }],
+          });
+        },
+      },
+    );
+
+    assert.equal(result.status, 200);
+    const schema = JSON.parse(calls[0].init.body).tools.find((tool) => tool.function.name === "automation_update").function.parameters;
+    assert.equal(schema.type, "object");
+    assert.equal(schema.oneOf, undefined);
+    assert.equal(schema.anyOf, undefined);
+    assert.deepEqual(schema.required, ["mode"]);
+    assert.deepEqual(schema.properties.mode.enum.sort(), ["create", "delete", "suggested_create", "view"]);
+    assert.equal(schema.properties.id.type, "string");
+    assert.equal(schema.properties.projectId.type, "string");
+  });
+
   test("normalizes Responses tool parameter schemas for OpenAI-compatible chat endpoints", async () => {
     const calls = [];
     const result = await handleProviderModelRequest(

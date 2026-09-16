@@ -1,4 +1,4 @@
-> **Latest update:** Grok 4.6 is now supported in Codex Desktop through the authenticated Grok CLI session, including remote Shimex clients; Kimi K3 is available through ClinePass with streaming responses and Codex tool calling.
+> **Latest update:** Grok 4.6 and Cursor subscription models are now supported in Codex Desktop through host profiles, including remote Shimex clients; Kimi K3 is available through ClinePass with streaming responses and Codex tool calling.
 
 # Shimex
 
@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="screenshot.png"><img src="screenshot.png" alt="Shimex admin control plane" width="100%"></a>
+  <a href="screenshot.png"><img src="screenshot.png" alt="Codex Desktop model picker showing Shimex-routed providers" width="100%"></a>
 </p>
 
 <p align="center">
